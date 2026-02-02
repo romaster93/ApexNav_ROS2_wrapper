@@ -225,6 +225,14 @@ If you want to run the real-world test example inside the Habitat simulator, ple
   </em>
 </p>
 
+## TODO List
+
+- [x] Release the main algorithm of ApexNav
+- [x] Complete Installation and Usage documentation
+- [x] Add datasets download documentation
+- [x] Release the code of real-world deployment
+- [x] Add ROS2 support
+
 ## Acknowledgment
 
 This repository is a ROS2 port of [ApexNav](https://github.com/Robotics-STAR-Lab/ApexNav) by the Robotics-STAR Lab.
