@@ -231,14 +231,20 @@ If you want to run the real-world test example inside the Habitat simulator, ple
 - [x] Complete Installation and Usage documentation
 - [x] Add datasets download documentation
 - [x] Release the code of real-world deployment
-- [x] Add ROS2 support
+- [ ] Add ROS2 support
+
+## License
+
+This repository is a derivative work of [ApexNav](https://github.com/Robotics-STAR-Lab/ApexNav), licensed under the [GNU General Public License v3.0](./LICENSE). The original code and algorithm were developed by:
+
+> Mingjie Zhang, Yuheng Du, Chengkai Wu, Jinni Zhou, Zhenchao Qi, Jun Ma, Boyu Zhou
+> **Robotics-STAR Lab** — HKUST(GZ) & SUSTech
+
+This wrapper only provides ROS2 Jazzy compatibility. All core algorithms and intellectual property belong to the original authors.
 
 ## Acknowledgment
 
-This repository is a ROS2 port of [ApexNav](https://github.com/Robotics-STAR-Lab/ApexNav) by the Robotics-STAR Lab.
-
-We would like to acknowledge the contributions of the following projects:
-- **[ApexNav](https://github.com/Robotics-STAR-Lab/ApexNav)**: The original ROS1 implementation.
+- **[ApexNav](https://github.com/Robotics-STAR-Lab/ApexNav)**: The original ROS1 implementation by Robotics-STAR Lab.
 - **[VLFM](https://github.com/bdaiinstitute/vlfm)**: For the concept of Vision-Language Frontier Maps.
 - **[FUEL](https://github.com/HKUST-Aerial-Robotics/FUEL)**: For the TSP-based efficient frontier exploration framework.
 
