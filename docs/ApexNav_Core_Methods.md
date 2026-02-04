@@ -412,6 +412,132 @@ bool haveOverlap(
 }
 ```
 
+#### 3.3.5 Geometric vs Semantic: 프론티어의 이중 연산
+
+**핵심 개념**: 프론티어 **검출**은 기하학적, 프론티어 **가치 평가**는 의미론적으로 수행된다.
+
+```
+┌─────────────────────────────────────────────────────┐
+│   Frontier Detection (기하학적)                      │
+│   ─────────────────────────────                      │
+│   • Free vs Unknown 경계 찾기                        │
+│   • 순수하게 Occupancy Grid 기반                     │
+│   • "어디에 탐색 안 한 영역이 있나?"                  │
+├─────────────────────────────────────────────────────┤
+│   Frontier Valuation (의미론적)                      │
+│   ─────────────────────────────                      │
+│   • 각 Frontier에 Semantic Score 할당               │
+│   • Value Map에서 해당 영역의 ITM 점수 평균          │
+│   • "이 Frontier에 목표 객체가 있을 확률은?"         │
+└─────────────────────────────────────────────────────┘
+```
+
+**Frontier Semantic Value 계산**:
+```cpp
+// exploration_manager.cpp (개념)
+double getFrontierSemanticValue(Frontier& frontier) {
+    double total_value = 0.0;
+    int count = 0;
+
+    // Frontier 주변 셀들의 Value Map 값 평균
+    for (auto& cell : frontier.cells_) {
+        double semantic_score = value_map_->getValue(cell);
+        total_value += semantic_score;
+        count++;
+    }
+
+    return total_value / count;  // 평균 semantic value
+}
+```
+
+**시각적 예시**:
+```
+Value Map (ITM Scores)          Frontier Map (Geometric)
+┌─────────────────────┐         ┌─────────────────────┐
+│ 0.2 │ 0.3 │ 0.8 │ ? │         │     │     │  F  │ F │  ← Frontier
+├─────┼─────┼─────┼───┤         ├─────┼─────┼─────┼───┤
+│ 0.1 │ 0.2 │ 0.7 │ ? │         │     │     │  F  │ F │
+├─────┼─────┼─────┼───┤         ├─────┼─────┼─────┼───┤
+│ 0.1 │ 0.1 │ ★  │ ? │         │     │     │  ★  │ F │
+└─────────────────────┘         └─────────────────────┘
+
+Frontier A (우측): Semantic Value = (0.8 + 0.7) / 2 = 0.75 ← 높음!
+Frontier B (다른 곳): Semantic Value = 0.2 ← 낮음
+→ Adaptive Strategy에서 Frontier A 우선 선택
+```
+
+#### 3.3.6 RGB-D 카메라와 맵 투영
+
+**질문**: 로봇이 해당 위치에 가지 않아도 어떻게 맵에 Semantic Score를 표시할 수 있는가?
+
+**답변**: **RGB-D 카메라 (깊이 센서)** 를 통해 각 픽셀의 3D 좌표를 계산한다.
+
+```
+RGB-D Camera
+    │
+    ├── RGB 이미지 → BLIP-2 ITM → Semantic Score (0~1)
+    │
+    └── Depth 이미지 → 각 픽셀의 거리 (m)
+```
+
+**픽셀 → 맵 좌표 변환**:
+```
+카메라 픽셀 (u, v) + Depth (d)
+         │
+         ▼  카메라 내부 파라미터 (fx, fy, cx, cy)
+3D 포인트 (X, Y, Z) = 카메라 좌표계
+         │
+         ▼  로봇 위치 + 자세 (Odometry)
+맵 좌표 (map_x, map_y)
+```
+
+**수식**:
+```
+X = (u - cx) * d / fx
+Y = (v - cy) * d / fy
+Z = d
+
+world_point = robot_pose × camera_point
+```
+
+**깊이 센서 범위**:
+```cpp
+// Habitat 시뮬레이터 설정
+depth_sensor:
+  min_depth: 0.5m   # 최소 감지 거리
+  max_depth: 10.0m  # 최대 감지 거리
+
+// 유효 범위 확인
+if (depth > min_depth && depth < max_depth) {
+    updateValueMap(world_point, itm_score);
+}
+```
+
+**시각적 예시**:
+```
+로봇 위치: ★
+카메라 FOV: 79°
+깊이 범위: 0.5m ~ 10m
+
+        ┌─────────────────────┐
+        │ ? ? ? ? ? ? ? ? ? ? │  ← Unknown (깊이 센서 범위 밖)
+        │ ? ? ┌───────┐ ? ? ? │
+        │ ? ? │ 0.7   │ ? ? ? │  ← ITM Score 투영 (깊이로 위치 확인)
+        │ ? ? │ 0.8   │ ? ? ? │
+        │ ? ? └───────┘ ? ? ? │
+        │ ? ? ? ? ★ ? ? ? ? ? │  ← 로봇
+        └─────────────────────┘
+
+    FOV 영역만 Semantic Score 업데이트
+    나머지는 Unknown (?) 유지
+```
+
+| 질문 | 답변 |
+|------|------|
+| 안 가도 맵에 어떻게 보여? | **Depth 센서**로 각 픽셀 거리 → 맵 좌표 계산 |
+| Max Range는? | **깊이 센서 스펙** (보통 10m) |
+| 프론티어 경계는? | Free-Unknown 경계 (깊이 센서 범위 끝) |
+
 ---
 
 ### 3.4 Object Detection & Clustering (객체 검출 및 클러스터링)
