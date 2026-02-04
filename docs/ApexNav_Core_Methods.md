@@ -11,9 +11,14 @@
 - **arXiv**: 2504.14478
 
 ### 1.2 연구 목표 (Research Objective)
-ApexNav는 **Zero-Shot Object Navigation (ZS-ObjectNav)** 문제를 해결하기 위한 획기적인 시스템이다. 
+ApexNav는 **Zero-Shot Object Navigation (ZS-ObjectNav)** 문제를 해결하기 위한 획기적인 시스템이다.
 
 **Zero-Shot Object Navigation의 정의**: 로봇이 사전에 학습 없이 객체의 텍스트 기반 설명만 주어졌을 때, 동적 환경에서 해당 객체를 찾아 도달하는 작업이다.
+
+### 1.3 실제 환경 데모 (Real-world Demonstration)
+
+![ApexNav Real-world Demo](https://arxiv.org/html/2504.14478v3/x1.png)
+*Figure 1: ApexNav의 실제 환경 테스트. 다양한 실내 환경에서 목표 객체를 성공적으로 찾아 도달하는 과정*
 
 ---
 
@@ -50,6 +55,12 @@ ApexNav는 **Zero-Shot Object Navigation (ZS-ObjectNav)** 문제를 해결하기
 
 #### 3.1.1 기본 개념
 타겟 중심 의미론적 융합은 ApexNav의 핵심 기여점이다. VLM의 환각을 줄이기 위해 시간에 따른 다중 관찰을 통합한다.
+
+![Fusion Pipeline](https://arxiv.org/html/2504.14478v3/x5.png)
+*Figure 5: 타겟 중심 의미론적 융합 파이프라인. 다중 스텝 시맨틱 세그멘테이션과 3D 포인트 클라우드 통합*
+
+![Fusion Case Studies](https://arxiv.org/html/2504.14478v3/x6.png)
+*Figure 6: 융합 방법의 환각 처리 예시. (a) 침대를 소파로 오분류한 경우 신뢰도 가중치로 보정, (b) 이전 검출 객체가 현재 FOV에서 사라진 경우 신뢰도 페널티 적용*
 
 #### 3.1.2 ITM 기반 의미론적 값 추정
 
@@ -176,6 +187,12 @@ void ValueMap::updateValueMap(
 
 #### 3.2.1 개요
 ApexNav는 4가지 탐색 정책을 상황에 따라 동적으로 전환한다.
+
+![Adaptive Exploration Example](https://arxiv.org/html/2504.14478v3/x4.png)
+*Figure 4: 적응형 탐색 예시. 에이전트가 환경 초기화를 위해 회전한 후, 의미론적/기하학적 탐색 모드를 전환하며 목표를 탐색*
+
+![TSP-based Exploration](https://arxiv.org/html/2504.14478v3/x3.png)
+*Figure 3: 의미론적 기반 탐색 그림. 낮은 점수의 프론티어 클러스터는 제외되고, 높은 점수 클러스터에 대해 TSP 투어 계산*
 
 #### 3.2.2 탐색 정책 (4 Exploration Policies)
 
@@ -916,6 +933,9 @@ constexpr double ACTION_ANGLE = M_PI / 6.0; // 회전 각도 (30°)
 
 ## 4. 시스템 아키텍처 (System Architecture)
 
+![ApexNav System Architecture](https://arxiv.org/html/2504.14478v3/x2.png)
+*Figure 2: ApexNav 시스템 파이프라인. LLM 기반 유사 객체 리스트 생성, 프론티어 매핑, 의미론적 점수 매핑, 타겟 중심 융합, 안전 웨이포인트 네비게이션 모듈*
+
 ### 4.1 전체 시스템 구성
 
 ```
@@ -1083,6 +1103,9 @@ expl_result_pub_ = node_->create_publisher<std_msgs::msg::Int32>(
 - Success Rate: +15-25% 향상
 - SPL: +10-20% 향상
 - Path Length 감소: -20-30%
+
+![Failure Analysis](https://arxiv.org/html/2504.14478v3/x7.png)
+*Figure 7: ApexNav 실패 원인 통계 (HM3Dv1, HM3Dv2, MP3D 데이터셋)*
 
 ---
 
