@@ -74,10 +74,12 @@ Camera Specification:
 ```
 
 **신뢰도 계산 공식**:
-$$C(p) = \cos^2\left(\frac{\theta_{\text{rel}}}{FOV/2} \times \frac{\pi}{2}\right)$$
+```
+C(p) = cos²((θ_rel / (FOV/2)) × (π/2))
+```
 
 여기서:
-- $\theta_{\text{rel}}$ = 카메라 광축에서 포인트까지의 상대 각도
+- `θ_rel` = 카메라 광축에서 포인트까지의 상대 각도
 - FOV/2 = 39.5° (반 시야각)
 - 신뢰도 범위: [0, 1] (중심에서 1, 가장자리에서 0)
 
@@ -108,18 +110,20 @@ double ValueMap::getFovConfidence(
 #### 3.1.4 신뢰도 및 값 융합
 
 **시간에 따른 누적 신뢰도 계산**:
-
-$$C_{\text{new}} = \frac{C_{\text{now}}^2 + C_{\text{last}}^2}{C_{\text{now}} + C_{\text{last}}}$$
+```
+C_new = (C_now² + C_last²) / (C_now + C_last)
+```
 
 **신뢰도 기반 값 융합**:
-
-$$V_{\text{new}} = \frac{C_{\text{now}} \cdot V_{\text{now}} + C_{\text{last}} \cdot V_{\text{last}}}{C_{\text{now}} + C_{\text{last}}}$$
+```
+V_new = (C_now × V_now + C_last × V_last) / (C_now + C_last)
+```
 
 여기서:
-- $C$ = 신뢰도
-- $V$ = ITM 점수
-- $\text{now}$ = 현재 관찰
-- $\text{last}$ = 이전 누적 값
+- `C` = 신뢰도
+- `V` = ITM 점수
+- `now` = 현재 관찰
+- `last` = 이전 누적 값
 
 **구현**:
 ```cpp
@@ -184,9 +188,11 @@ ApexNav는 4가지 탐색 정책을 상황에 따라 동적으로 전환한다.
 - 거리 비용을 최소화하는 것이 효율적
 
 **공식**:
-$$\text{frontier}_{\text{selected}} = \arg\min_i d_i$$
+```
+frontier_selected = argmin(d_i)
+```
 
-여기서 $d_i$는 현재 위치에서 프론티어까지의 거리
+여기서 `d_i`는 현재 위치에서 프론티어까지의 거리
 
 **구현 원리**: 
 - Euclidean 거리 계산
@@ -202,12 +208,16 @@ $$\text{frontier}_{\text{selected}} = \arg\min_i d_i$$
 - 객체 발견 확률을 최대화
 
 **공식**:
-$$\text{frontier}_{\text{selected}} = \arg\max_i V_i$$
+```
+frontier_selected = argmax(V_i)
+```
 
-여기서 $V_i$는 프론티어의 누적 의미론적 값
+여기서 `V_i`는 프론티어의 누적 의미론적 값
 
-**우점성 (Dominance)**: 
-$$\text{dominant} = \max(V) - \text{mean}(V) > \text{threshold}$$
+**우점성 (Dominance)**:
+```
+dominant = max(V) - mean(V) > threshold
+```
 
 ##### **정책 3: Hybrid (통계 기반 적응형 전환)**
 
@@ -220,8 +230,10 @@ $$\text{dominant} = \max(V) - \text{mean}(V) > \text{threshold}$$
 **적응형 전환 로직**:
 
 1. **통계 계산**:
-   $$\sigma = \text{std\_dev}(V_1, V_2, \ldots, V_n)$$
-   $$r = \frac{\max(V)}{\text{mean}(V)}$$
+   ```
+   σ = std_dev(V_1, V_2, ..., V_n)
+   r = max(V) / mean(V)
+   ```
 
 2. **임계값 비교**:
    ```
@@ -234,12 +246,14 @@ $$\text{dominant} = \max(V) - \text{mean}(V) > \text{threshold}$$
    ```
 
 3. **하이브리드 비용 함수**:
-   $$\text{cost}_i = \alpha \cdot d_i - \beta \cdot V_i$$
+   ```
+   cost_i = α × d_i - β × V_i
+   ```
 
    여기서:
-   - $\alpha$ = 거리 가중치
-   - $\beta$ = 의미론적 가중치
-   - $\alpha, \beta$는 상황에 따라 조정됨
+   - `α` = 거리 가중치
+   - `β` = 의미론적 가중치
+   - `α, β`는 상황에 따라 조정됨
 
 **임계값**:
 ```
@@ -258,7 +272,9 @@ r_threshold = 1.2 (max/mean ratio)
 **알고리즘**: LKH (Lin-Kernighan Heuristic)
 
 **공식**:
-$$\text{tour}^* = \arg\min_{\text{tour}} \sum_{i=0}^{n-1} d(\text{tour}_i, \text{tour}_{i+1})$$
+```
+tour* = argmin(Σ d(tour_i, tour_{i+1})) for i=0 to n-1
+```
 
 **구현**:
 ```cpp
@@ -301,7 +317,9 @@ int selectExplorationStrategy(
 **프론티어 (Frontier)**는 알려진 자유 공간과 미지 영역의 경계 그리드이다.
 
 **수학적 정의**:
-$$\text{Frontier} = \{p : p \in \text{Free} \wedge \exists q \in \text{8-neighbors}(p), q \in \text{Unknown}\}$$
+```
+Frontier = {p : p ∈ Free ∧ ∃q ∈ 8-neighbors(p), q ∈ Unknown}
+```
 
 #### 3.3.2 프론티어 검출 알고리즘
 
@@ -538,9 +556,9 @@ ApexNav는 3단계 경로 계획을 사용한다:
 
 **알고리즘**:
 1. **휴리스틱**: 유클리드 거리
-2. **비용 함수**: $f = g + h$
-   - $g$ = 시작점에서의 비용
-   - $h$ = 목표점까지의 휴리스틱 비용
+2. **비용 함수**: `f = g + h`
+   - `g` = 시작점에서의 비용
+   - `h` = 목표점까지의 휴리스틱 비용
 3. **안전 모드**: 3가지 모드 지원
 
 ```cpp
@@ -565,25 +583,29 @@ public:
 };
 ```
 
-**시간 복잡도**: $O(n \log n)$ (n = 그리드 수)
-**공간 복잡도**: $O(n)$
+**시간 복잡도**: `O(n log n)` (n = 그리드 수)
+**공간 복잡도**: `O(n)`
 
 #### 3.5.3 Kinodynamic A* (동역학 제약 고려)
 
 **용도**: 로봇의 동역학 제약을 고려한 궤적 계획
 
 **제약 조건**:
-- 최대 속도: $v_{\max}$
-- 최대 가속도: $a_{\max}$
-- 최대 각속도: $\omega_{\max}$
+- 최대 속도: `v_max`
+- 최대 가속도: `a_max`
+- 최대 각속도: `ω_max`
 
 **상태 공간**:
-$$\mathbf{s} = [x, y, \theta, v_x, v_y, \omega]^T$$
+```
+s = [x, y, θ, v_x, v_y, ω]^T
+```
 
 **동역학 모델**:
-$$\dot{x} = v_x \cos\theta - v_y \sin\theta$$
-$$\dot{y} = v_x \sin\theta + v_y \cos\theta$$
-$$\dot{\theta} = \omega$$
+```
+ẋ = v_x × cos(θ) - v_y × sin(θ)
+ẏ = v_x × sin(θ) + v_y × cos(θ)
+θ̇ = ω
+```
 
 #### 3.5.4 TSP Solver (LKH 알고리즘)
 
