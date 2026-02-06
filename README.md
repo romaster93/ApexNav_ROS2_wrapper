@@ -94,8 +94,8 @@ Download the following model weights and place them in the `data/` directory:
 
 #### 2.1 Clone Repository
 ``` bash
-git clone git@github.com:romaster93/apex_nav_ros2_wrapper.git
-cd apex_nav_ros2_wrapper
+git clone git@github.com:romaster93/ApexNav_ROS2_wrapper.git
+cd ApexNav_ROS2_wrapper
 ```
 
 #### 2.2 Create Conda Environment
@@ -127,9 +127,9 @@ pip install -e habitat-baselines
 
 #### 2.5 tf_transformations
 ``` bash
-pip install transforms3d
+pip install tf-transformations
 ```
-Create a shim module at `<conda_env>/lib/python3.12/site-packages/tf_transformations/__init__.py` that wraps `transforms3d` to provide the ROS1 `tf.transformations` API.
+> This installs the `tf_transformations` Python package (which depends on `transforms3d`) providing the same API as ROS1's `tf.transformations`.
 
 #### 2.6 Others
 ``` bash
@@ -186,7 +186,8 @@ python -m vlm.segmentor.sam --port 12183
 python -m vlm.detector.yolov7 --port 12184
 ```
 
-### Launch Visualization and Main Algorithm
+### Launch Visualization and Main Algorithm (Discrete Action Mode)
+Each command should be run in a separate terminal.
 ```bash
 ros2 launch exploration_manager rviz.launch.py        # RViz2 visualization
 ros2 launch exploration_manager exploration.launch.py  # ApexNav main algorithm
@@ -215,6 +216,21 @@ python habitat_manual_control.py --dataset hm3dv1 test_epi_num=10  # episode_id 
 ### Real-world Deployment Example
 If you want to run the real-world test example inside the Habitat simulator, please refer to the [Real World README](./real_world_test_example/README.md) for more details.
 
+### Trajectory Mode (Velocity Control)
+For trajectory planning with MPC control (used in real-world deployment testing):
+```bash
+# Terminal 1: RViz visualization (trajectory version)
+ros2 launch exploration_manager rviz_traj.launch.py
+
+# Terminal 2: ApexNav main algorithm (trajectory version)
+ros2 launch exploration_manager exploration_traj.launch.py
+
+# Terminal 3: Habitat simulator with velocity control
+python habitat_vel_control.py
+```
+> In this mode, use RViz's **"2D Nav Goal"** tool to manually trigger autonomous exploration.
+> For detailed real-world deployment instructions, see the [Real World README](./real_world_test_example/README.md).
+
 <p align="center" style="font-size: 1.0em;">
   <a href="">
     <img src="assets/auto_search.gif" alt="apexnav_demo2" width="80%">
@@ -231,7 +247,7 @@ If you want to run the real-world test example inside the Habitat simulator, ple
 - [x] Complete Installation and Usage documentation
 - [x] Add datasets download documentation
 - [x] Release the code of real-world deployment
-- [ ] Add ROS2 support
+- [x] Add ROS2 support
 
 ## License
 

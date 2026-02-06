@@ -11,7 +11,7 @@ environment and the Habitat simulator before running this example.
 
 > All following commands should be run in the conda environment with ROS2 sourced:
 > ```bash
-> conda activate apexnav_ros2
+> conda activate apexnav
 > source /opt/ros/jazzy/setup.bash
 > source install/setup.bash
 > ```
