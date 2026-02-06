@@ -66,12 +66,16 @@ void ExplorationFSMReal::init(rclcpp::Node::SharedPtr node)
   confidence_threshold_sub_ = node_->create_subscription<std_msgs::msg::Float64>(
       "/detector/confidence_threshold", 10,
       std::bind(&ExplorationFSMReal::confidenceThresholdCallback, this, std::placeholders::_1));
+  habitat_state_sub_ = node_->create_subscription<std_msgs::msg::Int32>(
+      "/habitat/state", 10,
+      std::bind(&ExplorationFSMReal::habitatStateCallback, this, std::placeholders::_1));
 
   /* ROS2 Publisher */
   ros_state_pub_ = node_->create_publisher<std_msgs::msg::Int32>("/ros/state", 10);
   expl_state_pub_ = node_->create_publisher<std_msgs::msg::Int32>("/ros/expl_state", 10);
   expl_result_pub_ = node_->create_publisher<std_msgs::msg::Int32>("/ros/expl_result", 10);
   robot_marker_pub_ = node_->create_publisher<visualization_msgs::msg::Marker>("/robot", 10);
+  action_pub_ = node_->create_publisher<std_msgs::msg::Int32>("/habitat/plan_action", 10);
 
   // Real-world trajectory publishers
   poly_traj_pub_ = node_->create_publisher<trajectory_manager::msg::PolyTraj>("/planning/trajectory", 10);
@@ -117,6 +121,10 @@ void ExplorationFSMReal::FSMCallback()
       if (!fd_->have_finished_) {
         fd_->have_finished_ = true;
         clearVisMarker();
+        // Signal habitat to stop
+        std_msgs::msg::Int32 action_msg;
+        action_msg.data = 0;  // ACTION::STOP
+        action_pub_->publish(action_msg);
       }
       RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
           "[Real] Finish exploration!");
@@ -168,7 +176,17 @@ void ExplorationFSMReal::FSMCallback()
         transitState(RealFSM::State::EXEC_TRAJ, "FSM");
       }
       else {  // TrajPlannerResult::MISSION_COMPLETE
-        transitState(RealFSM::State::FINISH, "FSM");
+        // If planning from predicted trajectory endpoint failed,
+        // retry from actual odom position before giving up
+        if (!fd_->static_state_) {
+          RCLCPP_WARN(node_->get_logger(),
+              "[Real] No frontier from predicted pos, retrying from odom...");
+          fd_->static_state_ = true;
+          // Don't transition - stay in PLAN_TRAJ to retry on next FSM tick
+        }
+        else {
+          transitState(RealFSM::State::FINISH, "FSM");
+        }
       }
 
       visualize();
@@ -676,6 +694,15 @@ void ExplorationFSMReal::transitState(RealFSM::State new_state, std::string pos_
   RCLCPP_INFO(node_->get_logger(), "[Real FSM]: %s -> from %s to %s", pos_call.c_str(),
       state_str[static_cast<int>(state_)].c_str(), state_str[static_cast<int>(new_state)].c_str());
   state_ = new_state;
+}
+
+void ExplorationFSMReal::habitatStateCallback(const std_msgs::msg::Int32::SharedPtr msg)
+{
+  // HABITAT_STATE::EPISODE_FINISH = 3
+  if (msg->data == 3) {
+    RCLCPP_INFO(node_->get_logger(), "[Real] Episode finished, reinitializing...");
+    init(node_);
+  }
 }
 
 }  // namespace apexnav_planner

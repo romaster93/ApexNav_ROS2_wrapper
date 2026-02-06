@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Image
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
@@ -10,6 +11,14 @@ import numpy as np
 from copy import deepcopy
 
 
+# Sensor data QoS - use BEST_EFFORT for compatibility with RViz2 and ROS2 subscribers
+SENSOR_QOS = QoSProfile(
+    reliability=ReliabilityPolicy.BEST_EFFORT,
+    history=HistoryPolicy.KEEP_LAST,
+    depth=10
+)
+
+
 def _quat_from_array(q):
     """Convert [x, y, z, w] array to Quaternion msg (ROS2 requires kwargs)."""
     return Quaternion(x=float(q[0]), y=float(q[1]), z=float(q[2]), w=float(q[3]))
@@ -18,11 +27,11 @@ def _quat_from_array(q):
 class ROSPublisher(Node):
     def __init__(self, node_name='habitat_ros_publisher'):
         super().__init__(node_name)
-        # Create ROS2 publishers
-        self.depth_pub = self.create_publisher(Image, "/habitat/camera_depth", 10)
-        self.rgb_pub = self.create_publisher(Image, "/habitat/camera_rgb", 10)
+        # Create ROS2 publishers with sensor QoS for RViz2 compatibility
+        self.depth_pub = self.create_publisher(Image, "/habitat/camera_depth", SENSOR_QOS)
+        self.rgb_pub = self.create_publisher(Image, "/habitat/camera_rgb", SENSOR_QOS)
         self.odom_pub = self.create_publisher(Odometry, "/habitat/odom", 10)
-        self.pose_pub = self.create_publisher(Odometry, "/habitat/sensor_pose", 10)
+        self.pose_pub = self.create_publisher(Odometry, "/habitat/sensor_pose", SENSOR_QOS)
         # Create cv_bridge object
         self.bridge = CvBridge()
 
@@ -82,11 +91,11 @@ class ROSPublisherNonNode:
     """Non-node version for use with external node"""
     def __init__(self, node):
         self.node = node
-        # Create ROS2 publishers
-        self.depth_pub = node.create_publisher(Image, "/habitat/camera_depth", 10)
-        self.rgb_pub = node.create_publisher(Image, "/habitat/camera_rgb", 10)
+        # Create ROS2 publishers with sensor QoS for RViz2 compatibility
+        self.depth_pub = node.create_publisher(Image, "/habitat/camera_depth", SENSOR_QOS)
+        self.rgb_pub = node.create_publisher(Image, "/habitat/camera_rgb", SENSOR_QOS)
         self.odom_pub = node.create_publisher(Odometry, "/habitat/odom", 10)
-        self.pose_pub = node.create_publisher(Odometry, "/habitat/sensor_pose", 10)
+        self.pose_pub = node.create_publisher(Odometry, "/habitat/sensor_pose", SENSOR_QOS)
         # Create cv_bridge object
         self.bridge = CvBridge()
 

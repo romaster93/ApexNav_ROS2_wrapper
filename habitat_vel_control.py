@@ -17,7 +17,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from copy import deepcopy
 from std_msgs.msg import Float64, String
 from vlm.Labels import MP3D_ID_TO_NAME
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, PoseStamped
 import habitat_sim
 from habitat_sim.utils import common as utils
 
@@ -52,6 +52,7 @@ class HabitatVelControlNode(Node):
         self.confidence_threshold_pub = self.create_publisher(
             Float64, "/detector/confidence_threshold", qos)
         self.label_pub = self.create_publisher(String, "/detector/label", 1)
+        self.trigger_pub = self.create_publisher(PoseStamped, "/move_base_simple/goal", qos)
 
         # ROS Publisher for habitat topics
         self.ros_pub = ROSPublisherNonNode(self)
@@ -72,6 +73,10 @@ class HabitatVelControlNode(Node):
         msg = Float64()
         msg.data = float(self.fusion_score)
         self.confidence_threshold_pub.publish(msg)
+
+        # Publish trigger for FSM
+        trigger = PoseStamped()
+        self.trigger_pub.publish(trigger)
 
     def start_observation_timer(self):
         """Start timer for publishing observations"""
@@ -161,7 +166,6 @@ def run_simulation(cfg: DictConfig, node: HabitatVelControlNode):
         )
     env = habitat.Env(cfg)
     sim = env.sim
-    sim.set_gravity(np.array([0.0, 0.0, 0.0]))
     vel_control = habitat_sim.physics.VelocityControl()
     vel_control.controlling_lin_vel = True
     vel_control.controlling_ang_vel = True

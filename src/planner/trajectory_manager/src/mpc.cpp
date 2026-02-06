@@ -7,41 +7,41 @@ void MPC::init(rclcpp::Node::SharedPtr node)
   node_ = node;
 
   // Declare and get parameters
-  if (!node_->has_parameter("mpc/du_threshold")) {
-    node_->declare_parameter("mpc/du_threshold", -1.0);
+  if (!node_->has_parameter("mpc.du_threshold")) {
+    node_->declare_parameter("mpc.du_threshold", -1.0);
   }
-  if (!node_->has_parameter("mpc/max_iter")) {
-    node_->declare_parameter("mpc/max_iter", -1);
+  if (!node_->has_parameter("mpc.max_iter")) {
+    node_->declare_parameter("mpc.max_iter", -1);
   }
-  if (!node_->has_parameter("mpc/delay_num")) {
-    node_->declare_parameter("mpc/delay_num", -1);
+  if (!node_->has_parameter("mpc.delay_num")) {
+    node_->declare_parameter("mpc.delay_num", -1);
   }
-  if (!node_->has_parameter("mpc/tolerance")) {
-    node_->declare_parameter("mpc/tolerance", 0.1);
+  if (!node_->has_parameter("mpc.tolerance")) {
+    node_->declare_parameter("mpc.tolerance", 0.1);
   }
-  if (!node_->has_parameter("mpc/matrix_q")) {
-    node_->declare_parameter("mpc/matrix_q", std::vector<double>());
+  if (!node_->has_parameter("mpc.matrix_q")) {
+    node_->declare_parameter("mpc.matrix_q", std::vector<double>());
   }
-  if (!node_->has_parameter("mpc/matrix_r")) {
-    node_->declare_parameter("mpc/matrix_r", std::vector<double>());
+  if (!node_->has_parameter("mpc.matrix_r")) {
+    node_->declare_parameter("mpc.matrix_r", std::vector<double>());
   }
-  if (!node_->has_parameter("mpc/matrix_rd")) {
-    node_->declare_parameter("mpc/matrix_rd", std::vector<double>());
+  if (!node_->has_parameter("mpc.matrix_rd")) {
+    node_->declare_parameter("mpc.matrix_rd", std::vector<double>());
   }
 
-  du_th = node_->get_parameter("mpc/du_threshold").as_double();
-  dt = node_->get_parameter("mpc/dt").as_double();
-  max_iter = node_->get_parameter("mpc/max_iter").as_int();
-  T = node_->get_parameter("mpc/predict_steps").as_int();
-  delay_num = node_->get_parameter("mpc/delay_num").as_int();
+  du_th = node_->get_parameter("mpc.du_threshold").as_double();
+  dt = node_->get_parameter("mpc.dt").as_double();
+  max_iter = node_->get_parameter("mpc.max_iter").as_int();
+  T = node_->get_parameter("mpc.predict_steps").as_int();
+  delay_num = node_->get_parameter("mpc.delay_num").as_int();
   max_speed = node_->get_parameter("max_correction_vel").as_double();
   max_omega = node_->get_parameter("max_correction_omega").as_double();
   min_speed = 0.0;
   max_accel = max_speed;
-  tolerance = node_->get_parameter("mpc/tolerance").as_double();
-  Q = node_->get_parameter("mpc/matrix_q").as_double_array();
-  R = node_->get_parameter("mpc/matrix_r").as_double_array();
-  Rd = node_->get_parameter("mpc/matrix_rd").as_double_array();
+  tolerance = node_->get_parameter("mpc.tolerance").as_double();
+  Q = node_->get_parameter("mpc.matrix_q").as_double_array();
+  R = node_->get_parameter("mpc.matrix_r").as_double_array();
+  Rd = node_->get_parameter("mpc.matrix_rd").as_double_array();
 
   has_odom = false;
   receive_traj_ = false;

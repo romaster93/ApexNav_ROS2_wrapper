@@ -198,12 +198,18 @@ def _parse_dataset_arg():
         default="hm3dv2",
         help="Choose dataset: hm3dv1, hm3dv2 or mp3d (default: hm3dv2)",
     )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Delay in seconds between each step (default: 0.0)",
+    )
     # Keep unknown so users can still pass Hydra-style overrides (e.g., key=value)
     args, unknown = parser.parse_known_args()
-    return args.dataset, unknown
+    return args.dataset, args.delay, unknown
 
 
-def main(cfg: DictConfig, node: HabitatEvalNode) -> None:
+def main(cfg: DictConfig, node: HabitatEvalNode, step_delay: float = 0.0) -> None:
     # Load MP3D validation data for object category mapping
     with gzip.open(
         "data/datasets/objectnav/mp3d/v1/val/val.json.gz", "rt", encoding="utf-8"
@@ -455,6 +461,10 @@ def main(cfg: DictConfig, node: HabitatEvalNode) -> None:
             if distance_to_goal <= success_distance and pass_object == 0:
                 pass_object = 1
 
+            # Optional delay between steps for visualization
+            if step_delay > 0:
+                time.sleep(step_delay)
+
             # Notify ROS system that action execution is complete
             node.publish_int32(node.state_pub, HABITAT_STATE.ACTION_FINISH)
 
@@ -605,12 +615,12 @@ if __name__ == "__main__":
 
     try:
         node = HabitatEvalNode()
-        dataset, overrides = _parse_dataset_arg()
+        dataset, step_delay, overrides = _parse_dataset_arg()
         cfg_name = f"habitat_eval_{dataset}"
         # Compose the chosen config and pass through extra Hydra overrides
         with initialize(version_base=None, config_path="config"):
             cfg = compose(config_name=cfg_name, overrides=overrides)
-        main(cfg, node)
+        main(cfg, node, step_delay=step_delay)
     except Exception as e:
         print(f"Unexpected error occurred: {e}")
         rclpy.shutdown()

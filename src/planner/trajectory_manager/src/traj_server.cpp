@@ -36,18 +36,18 @@ public:
     if (!this->has_parameter("max_correction_omega")) {
       this->declare_parameter("max_correction_omega", 1.2);
     }
-    if (!this->has_parameter("mpc/predict_steps")) {
-      this->declare_parameter("mpc/predict_steps", -1);
+    if (!this->has_parameter("mpc.predict_steps")) {
+      this->declare_parameter("mpc.predict_steps", -1);
     }
-    if (!this->has_parameter("mpc/dt")) {
-      this->declare_parameter("mpc/dt", -1.0);
+    if (!this->has_parameter("mpc.dt")) {
+      this->declare_parameter("mpc.dt", -1.0);
     }
 
     bool need_init = this->get_parameter("need_init").as_bool();
     max_correction_vel_ = this->get_parameter("max_correction_vel").as_double();
     max_correction_omega_ = this->get_parameter("max_correction_omega").as_double();
-    mpc_N_ = this->get_parameter("mpc/predict_steps").as_int();
-    mpc_dt_ = this->get_parameter("mpc/dt").as_double();
+    mpc_N_ = this->get_parameter("mpc.predict_steps").as_int();
+    mpc_dt_ = this->get_parameter("mpc.dt").as_double();
 
     // Create subscriptions
     traj_sub_ = this->create_subscription<trajectory_manager::msg::PolyTraj>(
@@ -75,6 +75,11 @@ public:
 
     RCLCPP_INFO(this->get_logger(), "[traj_server] TrajectoryServer initialized, waiting for messages...");
 
+    need_init_ = need_init;
+  }
+
+  void initMPC()
+  {
     if (mpc_N_ <= 0 || mpc_dt_ <= 0.0) {
       RCLCPP_ERROR(this->get_logger(), "[traj_server] Wrong MPC parameters!");
       return;
@@ -83,7 +88,7 @@ public:
     mpc_controller_->init(this->shared_from_this());
     xref_.resize(mpc_N_);
 
-    if (need_init) {
+    if (need_init_) {
       init_state_ = 0;
       init_rotation_started_ = false;
       rotation_accum_ = 0.0;
@@ -443,12 +448,14 @@ private:
   double rotation_accum_;  // accumulated absolute yaw change (rad)
   double last_odom_yaw_;   // last odom yaw used for accumulation
   double max_correction_vel_, max_correction_omega_;
+  bool need_init_;
 };
 
 int main(int argc, char** argv)
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<TrajectoryServer>();
+  node->initMPC();
   rclcpp::spin(node);
   rclcpp::shutdown();
   return 0;

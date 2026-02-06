@@ -124,11 +124,13 @@ private:
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr confidence_threshold_sub_;
   rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr traj_finish_sub_;
+  rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr habitat_state_sub_;
 
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr ros_state_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr expl_state_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr expl_result_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr robot_marker_pub_;
+  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr action_pub_;
 
   // Real-world specific: trajectory control publishers
   rclcpp::Publisher<trajectory_manager::msg::PolyTraj>::SharedPtr poly_traj_pub_;
@@ -166,6 +168,7 @@ private:
   void odometryCallback(const nav_msgs::msg::Odometry::SharedPtr msg);
   void confidenceThresholdCallback(const std_msgs::msg::Float64::SharedPtr msg);
   void trajectoryFinishCallback(const std_msgs::msg::Empty::SharedPtr msg);
+  void habitatStateCallback(const std_msgs::msg::Int32::SharedPtr msg);
 
 public:
   ExplorationFSMReal() = default;

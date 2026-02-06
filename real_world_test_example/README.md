@@ -9,11 +9,18 @@ environment and the Habitat simulator before running this example.
 
 ## Quick Start
 
-> All following commands should be run in the `apexnav` conda environment
+> All following commands should be run in the conda environment with ROS2 sourced:
+> ```bash
+> conda activate apexnav_ros2
+> source /opt/ros/jazzy/setup.bash
+> source install/setup.bash
+> ```
 
-### ROS Compilation
+### ROS2 Build
 ```bash
-catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3
+source /opt/ros/jazzy/setup.bash
+colcon build
+source install/setup.bash
 ```
 
 ### Run VLM servers
@@ -27,18 +34,18 @@ python -m vlm.detector.yolov7 --port 12184
 
 ### Launch visualization and main algorithm
 ```bash
-source ./devel/setup.bash && roslaunch exploration_manager rviz_traj.launch   # RViz visualization
-source ./devel/setup.bash && roslaunch exploration_manager exploration_traj.launch   # ApexNav main algorithm
+ros2 launch exploration_manager rviz_traj.launch.py          # RViz2 visualization
+ros2 launch exploration_manager exploration_traj.launch.py    # ApexNav main algorithm
 ```
 
 ### Run Habitat simulator (velocity-control version)
 ```bash
-source ./devel/setup.bash && python habitat_vel_control.py
+python habitat_vel_control.py
 ```
 
 ### Run the real-world example node
 ```bash
-source ./devel/setup.bash && python ./real_world_test_example/real_world_test_habitat.py
+python ./real_world_test_example/real_world_test_habitat.py
 ```
 
 
