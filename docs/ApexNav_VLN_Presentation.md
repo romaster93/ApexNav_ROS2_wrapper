@@ -843,12 +843,12 @@ Detection & Verification Pipeline:
 │  1. Target-Centric Semantic Fusion                          │
 │     ├── FOV 기반 신뢰도 가중치 모델                        │
 │     ├── 시간 누적 신뢰도 제곱 융합                         │
-│     └── VLM 환각 >50% 감소 (Ablation: SR +15-21%p)        │
+│     └── Ablation: Fusion 제거 시 SR 15-21%p 하락           │
 │                                                             │
 │  2. Adaptive Exploration Strategy                           │
 │     ├── 통계 기반 4가지 정책 자동 전환                     │
 │     ├── TSP 최적화 다중 프론티어 투어                      │
-│     └── 경로 길이 20-30% 단축                              │
+│     └── TSP 전환만으로 SR +5.9%p, SPL +2.2%p              │
 │                                                             │
 │  3. Multi-modal VLM Ensemble                                │
 │     ├── 4개 VLM 교차 검증                                  │
