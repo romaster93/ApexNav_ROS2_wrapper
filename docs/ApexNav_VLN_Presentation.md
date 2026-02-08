@@ -1041,6 +1041,12 @@ RRT\*former의 **"환경 특징(CNN) + 이전 샘플 이력(Transformer) → 다
 
 12. **FUEL** — Zhou, B. et al., "FUEL: Fast UAV Exploration using Incremental Frontier Structure and Hierarchical Planning," *IEEE RA-L*, 2021.
 
+### 시뮬레이터 및 데이터셋
+
+13. **Habitat** — Savva, M. et al., "Habitat: A Platform for Embodied AI Research," *ICCV 2019*.
+
+14. **HM3D** — Ramakrishnan, S. et al., "Habitat-Matterport 3D Dataset (HM3D): 1000 Large-scale 3D Environments for Embodied AI," *NeurIPS 2021 Datasets Track*.
+
 ### E2E Navigation & Transformer Planning
 
 15. **RRT\*former** — Feng, M. et al., "RRT\*former: Environment-Aware Sampling-Based Motion Planning using Transformer," *arXiv:2511.15414*, 2025. [arXiv:2511.15414](https://arxiv.org/abs/2511.15414)
@@ -1050,12 +1056,6 @@ RRT\*former의 **"환경 특징(CNN) + 이전 샘플 이력(Transformer) → 다
 17. **NoMaD** — Sridhar, A. et al., "NoMaD: Goal Masking Diffusion Policies for Navigation and Exploration," *RSS 2024*. [arXiv:2310.07896](https://arxiv.org/abs/2310.07896)
 
 18. **NaviFormer** — Chen, X. et al., "NaviFormer: A Spatio-Temporal Context-Aware Transformer for Object Navigation," *AAAI 2025*.
-
-### 시뮬레이터 및 데이터셋
-
-13. **Habitat** — Savva, M. et al., "Habitat: A Platform for Embodied AI Research," *ICCV 2019*.
-
-14. **HM3D** — Ramakrishnan, S. et al., "Habitat-Matterport 3D Dataset (HM3D): 1000 Large-scale 3D Environments for Embodied AI," *NeurIPS 2021 Datasets Track*.
 
 ---
 
