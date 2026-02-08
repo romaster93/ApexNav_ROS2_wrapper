@@ -114,15 +114,16 @@ POPE는 VLM의 객체 환각을 체계적으로 평가하는 벤치마크이다:
    - Adversarial: GT와 자주 공존하는 비존재 객체
 3. "Is there a [object] in the image?" → Yes/No 폴링
 
-POPE 결과 (주요 VLM 환각률):
+POPE 결과 (F1 Score, 높을수록 정확):
 ┌─────────────────┬──────────┬──────────┬──────────────┐
 │ Model           │ Random   │ Popular  │ Adversarial  │
 ├─────────────────┼──────────┼──────────┼──────────────┤
-│ InstructBLIP    │ 14.5%    │ 21.3%    │ 26.8%        │
-│ MiniGPT-4      │ 29.2%    │ 35.7%    │ 41.3%        │
-│ LLaVA           │ 18.6%    │ 25.4%    │ 32.1%        │
+│ InstructBLIP    │ 89.29    │ 83.45    │ 78.45        │
+│ MiniGPT-4      │ 78.86    │ 72.21    │ 71.37        │
+│ LLaVA           │ 68.65    │ 67.72    │ 66.98        │
 └─────────────────┴──────────┴──────────┴──────────────┘
-* 환각률 = False Positive Rate (낮을수록 좋음)
+* Adversarial 설정에서 F1이 급락 → GT와 자주 공존하는 객체에 환각 취약
+* LLaVA는 "Yes" 응답 비율이 99%+로, 거의 모든 질문에 객체 존재를 답변 (Precision ~50%)
 ```
 
 > 출처: Li et al., "Evaluating Object Hallucination in Large Vision-Language Models," **EMNLP 2023** ([arXiv:2305.10355](https://arxiv.org/abs/2305.10355))
@@ -412,12 +413,12 @@ ApexNav: Multi-modal VLM Ensemble
 | 비교 항목 | VLFM (ICRA 2024) | ApexNav (RA-L 2025) |
 |----------|-------------------|---------------------|
 | **VLM 사용** | BLIP-2 ITM 단독 | GroundingDINO + BLIP-2 + SAM + YOLOv7 |
-| **신뢰도 모델** | 없음 (균등 가중치) | FOV 기반 코사인 제곱 가중치 |
-| **Value 융합** | 단순 평균 | 신뢰도 제곱 가중 융합 |
-| **환각 대응** | 제한적 | 다중 관찰 누적 + 교차 검증 |
+| **신뢰도 모델** | FOV 기반 선형 가중치 | FOV 기반 코사인 제곱 가중치 |
+| **Value 융합** | 선형 confidence 가중 평균 | 신뢰도 제곱 가중 융합 |
+| **환각 대응** | 제한적 (선형 누적) | 다중 관찰 누적 + 교차 검증 |
 | **탐색 전략** | Semantic-only (고정) | 4가지 정책 동적 전환 |
 | **TSP 최적화** | 없음 | LKH 기반 다중 프론티어 투어 |
-| **장기 기억** | 없음 | 신뢰도 기반 시간 누적 |
+| **장기 기억** | Value Map 시간 누적 (선형) | 신뢰도 제곱 시간 누적 (비선형) |
 | **실세계 배포** | Boston Dynamics Spot | 커스텀 모바일 로봇 |
 
 ---
@@ -501,13 +502,13 @@ ApexNav (신뢰도 가중 융합):
 │   r = max(V) / mean(V)         ← 우점성 측정                 │
 │                                                               │
 │   ┌──────────────┐                                            │
-│   │ σ < 0.015 AND│───Yes──→ [Policy 1: Distance-based]       │
-│   │ r < 1.10     │          "모든 값이 비슷 → 가까운 곳부터" │
+│   │ σ < 0.030 AND│───Yes──→ [Policy 1: Distance-based]       │
+│   │ r < 1.20     │          "모든 값이 비슷 → 가까운 곳부터" │
 │   └──────┬───────┘                                            │
 │          No                                                   │
 │   ┌──────▼───────┐                                            │
-│   │ σ > 0.015 OR │───Yes──→ [Policy 2: Semantic-based]       │
-│   │ r > 1.10     │          "뚜렷한 차이 → 높은 값 우선"     │
+│   │ σ > 0.030 OR │───Yes──→ [Policy 2: Semantic-based]       │
+│   │ r > 1.20     │          "뚜렷한 차이 → 높은 값 우선"     │
 │   └──────┬───────┘                                            │
 │          No                                                   │
 │   ┌──────▼───────┐                                            │
@@ -614,12 +615,12 @@ Detection & Verification Pipeline:
 | Method | Venue | SR (%) | SPL (%) |
 |--------|-------|--------|---------|
 | SemExp | NeurIPS 2020 | 21.0 | 9.4 |
-| ZSON | ICLR 2023 | 25.5 | 12.6 |
+| ZSON | NeurIPS 2022 | 25.5 | 12.6 |
 | CoW | CVPR 2023 | 23.0 | 8.8 |
-| ESC | ICRA 2023 | 38.0 | 22.4 |
+| ESC | ICML 2023 | 38.0 | 22.4 |
 | **VLFM** | **ICRA 2024** | **52.5** | **30.4** |
 | SG-Nav | NeurIPS 2024 | 48.8 | 27.0 |
-| TriHelper | ICRA 2024 | 56.5 | 25.3 |
+| TriHelper | IROS 2024 | 56.5 | 25.3 |
 | **ApexNav** | **RA-L 2025** | **59.6** | **33.0** |
 
 #### HM3Dv2 결과
@@ -628,10 +629,10 @@ Detection & Verification Pipeline:
 |--------|-------|--------|---------|
 | SemExp | NeurIPS 2020 | 21.1 | 9.6 |
 | CoW | CVPR 2023 | 28.6 | 12.4 |
-| ESC | ICRA 2023 | 46.0 | 30.0 |
+| ESC | ICML 2023 | 46.0 | 30.0 |
 | **VLFM** | **ICRA 2024** | **63.6** | **32.5** |
 | SG-Nav | NeurIPS 2024 | 56.2 | 24.1 |
-| TriHelper | ICRA 2024 | 69.2 | 30.3 |
+| TriHelper | IROS 2024 | 69.2 | 30.3 |
 | **ApexNav** | **RA-L 2025** | **76.2** | **38.0** |
 
 > **ApexNav vs VLFM (HM3Dv2): SR +12.6%p, SPL +5.5%p**
@@ -642,7 +643,7 @@ Detection & Verification Pipeline:
 |--------|-------|--------|---------|
 | SemExp | NeurIPS 2020 | 9.3 | 4.5 |
 | CoW | CVPR 2023 | 6.7 | 3.6 |
-| ESC | ICRA 2023 | 24.5 | 14.6 |
+| ESC | ICML 2023 | 24.5 | 14.6 |
 | **VLFM** | **ICRA 2024** | **36.4** | **17.5** |
 | SG-Nav | NeurIPS 2024 | 40.2 | 16.0 |
 | **ApexNav** | **RA-L 2025** | **39.2** | **17.8** |
@@ -756,8 +757,8 @@ Detection & Verification Pipeline:
 | `ACTION_ANGLE` | 30° (π/6) | 회전 각도 |
 | `REACH_DISTANCE` | 0.20m | 객체 도달 판정 |
 | `FOV` | 79° | 카메라 시야각 |
-| `σ_threshold` | 0.015 | 전략 전환 임계값 |
-| `r_threshold` | 1.10 | 우점성 임계값 |
+| `σ_threshold` | 0.030 | 전략 전환 임계값 |
+| `r_threshold` | 1.20 | 우점성 임계값 |
 
 ---
 
