@@ -1,5 +1,5 @@
 # ApexNav: VLM 환각 극복과 적응형 탐색을 통한 Zero-Shot Object Navigation
-## 박사급 세미나 발표 자료
+## 세미나 발표 자료
 
 ---
 
@@ -867,5 +867,5 @@ Detection & Verification Pipeline:
 
 ---
 
-*본 문서는 ApexNav 논문의 박사급 세미나 발표를 위해 작성되었습니다.*
+*본 문서는 ApexNav 논문 세미나 발표를 위해 작성되었습니다.*
 *모든 레퍼런스는 IEEE, CVPR, ICRA, ICML, NeurIPS, ECCV, EMNLP 등 Top-tier 학술지/학회에서 발표된 논문입니다.*
