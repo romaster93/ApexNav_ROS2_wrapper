@@ -331,30 +331,37 @@ Step 4: 가장 높은 Value를 가진 프론티어로 이동
 ### 4.5 VLFM의 한계점 (ApexNav가 해결하는 문제)
 
 ![VLFM Confidence and Value Averaging](./images/refs/vlfm_confidence.jpg)
-*Figure (VLFM-4): VLFM의 Confidence 마스크와 Value 평균화. (좌) FOV 중심부가 밝고(높은 신뢰도) 가장자리가 어두운(낮은 신뢰도) confidence 분포. (우) 두 시점의 관찰을 confidence 가중 평균하여 Value Map을 갱신. 그러나 VLFM은 이 confidence를 단순 마스크로만 사용하며, ApexNav처럼 시간 누적 제곱 융합을 수행하지 않는다. (출처: Yokoyama et al., VLFM, ICRA 2024)*
+*Figure (VLFM-4): VLFM의 Confidence 마스크와 Value 평균화. (좌) FOV 중심부가 밝고(높은 신뢰도) 가장자리가 어두운(낮은 신뢰도) confidence 분포. (우) 두 시점의 관찰을 confidence 가중 평균하여 Value Map을 갱신. VLFM도 공간적 FOV confidence를 사용하나, 시간 축 누적에서 ApexNav의 제곱 융합보다 환각에 취약하다. (출처: Yokoyama et al., VLFM, ICRA 2024)*
 
-#### 한계 1: 단순 Value 평균 — 환각에 무방비
+#### 한계 1: 시간 축 융합의 환각 취약성
+
+VLFM과 ApexNav 모두 **공간적(spatial) FOV confidence 마스크**를 사용한다 (FOV 중심부 = 높은 가중치, 가장자리 = 낮은 가중치). 핵심 차이는 **시간 축(temporal) 다중 관찰 누적 방식**이다.
 
 ```
-VLFM의 Value 업데이트:
-┌──────────────────────────────────────────────┐
-│  V_new = simple_average(V_old, V_current)    │
-│                                               │
-│  문제: 모든 관찰을 동일 가중치로 취급          │
-│  → FOV 가장자리의 노이즈도 동일하게 반영      │
-│  → 환각 점수가 누적되어 잘못된 방향 유도       │
-└──────────────────────────────────────────────┘
+VLFM의 시간 축 융합:
+┌──────────────────────────────────────────────────────┐
+│  V_new = (C_now × V_now + C_last × V_last)           │
+│          / (C_now + C_last)                           │
+│                                                       │
+│  문제: confidence-weighted average는 선형적이어서     │
+│  → 환각이 높은 C(FOV 중심)로 들어오면 그대로 반영    │
+│  → 예: bed를 couch로 오인한 관찰이 FOV 중심에서      │
+│    발생하면 C=0.9로 강하게 반영되어 보정이 어려움     │
+│  → 시간이 지나도 환각 점수가 쉽게 희석되지 않음       │
+└──────────────────────────────────────────────────────┘
 
-ApexNav의 Value 업데이트:
-┌──────────────────────────────────────────────┐
-│  C_new = (C_now² + C_last²)/(C_now + C_last) │
-│  V_new = (C_now×V_now + C_last×V_last)       │
-│          / (C_now + C_last)                   │
-│                                               │
-│  개선: FOV 중심부 관찰에 높은 가중치           │
-│  → 가장자리 노이즈 자동 억제                  │
-│  → 다중 관찰 누적으로 환각 상쇄               │
-└──────────────────────────────────────────────┘
+ApexNav의 시간 축 융합:
+┌──────────────────────────────────────────────────────┐
+│  C_new = (C_now² + C_last²) / (C_now + C_last)       │
+│  V_new = (C_now × V_now + C_last × V_last)           │
+│          / (C_now + C_last)                           │
+│                                                       │
+│  개선: confidence 제곱(²) 누적으로 비선형 강화        │
+│  → 반복적으로 높은 C에서 관찰될수록 누적 신뢰도 급상승│
+│  → 한두 번의 환각은 다수의 올바른 관찰에 의해 희석    │
+│  → 여러 각도에서 일관되게 검출되어야만 신뢰도 유지    │
+│  → 결과: 환각에 대한 자연스러운 저항성(robustness)    │
+└──────────────────────────────────────────────────────┘
 ```
 
 #### 한계 2: 고정된 탐색 전략 — 상황 부적응
