@@ -32,11 +32,14 @@
 
 ### 2.1 태스크 정의
 
-**Zero-Shot Object Navigation (ZS-ObjectNav)** 은 로봇이 **사전 학습 없이** 텍스트로 주어진 목표 객체를 미지의 환경에서 찾아 도달하는 과제이다.
+**Zero-Shot Object Navigation (ZS-ObjectNav)** 은 로봇이 **태스크 특화 학습 없이** 텍스트로 주어진 목표 객체를 미지의 환경에서 찾아 도달하는 과제이다.
+
+> **"Zero-Shot"의 의미**: 사용하는 AI 모델(BLIP-2, GroundingDINO 등)은 대규모 데이터로 사전 학습(pre-training)되어 있다. 하지만 "이 환경에서 냉장고는 주방에 있다"와 같은 **태스크 특화 추가 학습 없이**, 범용 사전학습 모델만으로 동작한다는 의미이다.
 
 ```
 입력: 텍스트 쿼리 "Find a [target object]" + 미지 환경
-출력: 목표 객체 0.2m 이내 도달 (STOP 액션)
+출력: 목표 객체 0.2m 이내 도달 시 STOP 액션 선언
+      (STOP은 "도착했다"는 의도적 선언으로, 한 번 선언하면 취소 불가)
 제약: 환경 사전 지식 없음, 태스크별 학습 없음
 ```
 
@@ -66,6 +69,25 @@
 │                    │ 균형이 필요        │                       │
 └────────────────────┴───────────────────┴───────────────────────┘
 ```
+
+### 2.4 핵심 용어 정리
+
+본 발표에서 반복적으로 사용되는 핵심 용어를 먼저 정리한다.
+
+| 용어 | 정의 |
+|------|------|
+| **VLM (Vision-Language Model)** | 이미지와 텍스트를 동시에 이해하는 AI 모델. 예: "이 사진에 의자가 있나요?"라는 질문에 답할 수 있다. |
+| **환각 (Hallucination)** | VLM이 이미지에 **존재하지 않는 객체를 있다고 판단**하는 현상. 예: 빈 방에서 "의자 발견 (신뢰도 0.72)" |
+| **프론티어 (Frontier)** | 로봇이 이미 탐색한 영역과 아직 탐색하지 않은 영역의 **경계선**. 프론티어로 이동하면 새로운 영역을 탐색할 수 있다. |
+| **Value Map** | 2D 지도의 각 격자에 "이 방향에 목표 객체가 있을 가능성"을 0~1 점수로 기록한 **의미론적 가치 지도** |
+| **Semantic Map (시맨틱 맵)** | 2D 지도의 각 격자에 객체 종류(의자, 침대 등)를 색상/라벨로 표시한 **의미론적 지도**. Value Map과 달리 객체 분류 결과를 담는다. |
+| **ITM (Image-Text Matching)** | "이 이미지와 이 텍스트가 얼마나 잘 맞는가?"를 0~1 확률로 계산하는 기능. BLIP-2 모델이 이 기능을 제공한다. |
+| **FOV (Field of View)** | 카메라가 한 번에 볼 수 있는 **시야각** (본 시스템에서 79°). 중심부가 가장자리보다 왜곡이 적어 신뢰도가 높다. |
+| **SR (Success Rate)** | 전체 에피소드 중 목표 객체에 도달한 비율 (높을수록 좋음) |
+| **SPL (Success weighted by Path Length)** | SR에 **경로 효율성**을 반영한 지표. SPL = (1/N) × Σ(S_i × L_i / max(P_i, L_i)). 성공하더라도 최단 경로 대비 먼 길을 돌아가면 점수가 낮아진다. |
+| **Ablation Study** | 시스템의 구성 요소를 **하나씩 제거**하며 성능 변화를 측정하는 실험. 각 구성 요소의 기여도를 정량적으로 검증한다. |
+| **Odometry (오도메트리)** | 로봇이 자신의 현재 위치와 자세를 추정하는 방법. 바퀴 회전, IMU 센서 등으로 계산한다. |
+| **RGB-D 카메라** | 일반 컬러(RGB) 이미지와 함께 각 픽셀까지의 **거리(Depth)**를 측정하는 카메라. 이 depth 정보로 2D 이미지를 3D 공간으로 변환할 수 있다. |
 
 ---
 
@@ -100,6 +122,8 @@ VLM Hallucination
 ```
 
 #### 3.1.2 학술적 평가 프레임워크
+
+VLM 환각이 단순한 추측이 아닌 **학술적으로 검증된 실재하는 문제**임을 보여주는 대표적 벤치마크들을 소개한다. ApexNav가 이 벤치마크들을 직접 사용하지는 않지만, 환각 문제의 심각성과 체계적 평가 방법론을 이해하는 데 필수적이다.
 
 **POPE (Polling-based Object Probing Evaluation)** — EMNLP 2023:
 
@@ -279,6 +303,8 @@ GroundingDINO Architecture:
 
 ---
 
+앞서 VLM 환각의 심각성을 확인했다. 그렇다면 기존 방법들은 이 문제를 어떻게 다루고 있었을까? ApexNav의 직접적 비교 대상인 VLFM을 먼저 살펴본다.
+
 ## 4. 기존 방법론: VLFM 심층 분석
 
 ### 4.1 VLFM 논문 정보
@@ -300,6 +326,21 @@ VLFM은 **인간의 탐색 전략에서 영감**을 받은 시스템이다:
 
 이 직관을 **Frontier-based Exploration + Vision-Language Value Map**으로 구현한다.
 
+**프론티어(Frontier)의 역할**: 로봇이 지도를 만들어 가면서 탐색할 때, "이미 본 영역"과 "아직 안 본 영역"의 경계가 생긴다. 이 경계가 프론티어이다. 프론티어로 이동하면 새로운 영역을 볼 수 있으므로, **"다음에 어디로 갈까?"의 후보지점** 역할을 한다. VLFM은 이 프론티어들 중 목표 객체가 있을 가능성이 높은 쪽을 Value Map으로 선택한다.
+
+```
+프론티어 개념도:
+┌─────────────────────────────┐
+│ ████████░░░░░░░░░░░░░░░░░░ │  ████ = 탐색 완료 (Known)
+│ ████████░░░░░░░░░░░░░░░░░░ │  ░░░░ = 미탐색 (Unknown)
+│ ████████▓▓▓▓░░░░░░░░░░░░░░ │  ▓▓▓▓ = 프론티어 (Frontier)
+│ ████████▓▓▓▓░░░░░░░░░░░░░░ │        → 여기로 이동하면
+│ ████████░░░░░░░░░░░░░░░░░░ │          새 영역 탐색 가능
+│ ██████░░░░░░░░░░░░░░░░░░░░ │
+│  🤖                        │  🤖 = 로봇 현재 위치
+└─────────────────────────────┘
+```
+
 ![VLFM Teaser](./images/refs/vlfm_teaser.jpg)
 *Figure (VLFM-1): VLFM vs Greedy Frontier 탐색 비교. "bed" 탐색 태스크에서 VLFM(녹색)은 Value Map의 높은 값(노란색/주황색) 방향으로 직행하여 효율적으로 목표에 도달하는 반면, Greedy frontier agent(빨간색)는 가까운 프론티어만 선택하여 비효율적 경로를 생성한다. (출처: Yokoyama et al., VLFM, ICRA 2024)*
 
@@ -315,17 +356,23 @@ VLFM은 **인간의 탐색 전략에서 영감**을 받은 시스템이다:
 ![VLFM Value Map Construction](./images/refs/vlfm_valuemap.jpg)
 *Figure (VLFM-3): VLFM Value Map 구축 과정. 시간 t=0, t=1에서 RGB 이미지를 BLIP-2에 입력하여 "bed"에 대한 cosine similarity(0.10, 0.13)를 계산하고, depth 정보로 FOV 영역에 투영하여 Value Map을 누적 생성한다. (출처: Yokoyama et al., VLFM, ICRA 2024)*
 
+> **용어 참고**: 위 그림의 "cosine similarity"는 BLIP-2 내부에서 이미지와 텍스트 임베딩 간의 유사도를 계산하는 방식이다. ITM(Image-Text Matching) 점수는 이 cosine similarity를 기반으로 "이미지와 텍스트가 매칭될 확률"을 0~1로 출력한 최종 결과이다. 즉, cosine similarity → ITM score로 변환되어 Value Map에 기록된다.
+
 ```
 Step 1: RGB 이미지를 BLIP-2 ITM에 입력
         ITM_score = P(match | image_crop, "a [target]")
 
-Step 2: 점수를 현재 카메라 FOV 영역에 투영
+Step 2: Depth 정보로 FOV 영역을 2D 지도에 투영
+        (RGB-D 카메라의 depth 값으로 "카메라가 보는 영역"을
+         2D 격자 지도 위에 매핑)
+
+Step 3: 투영된 영역의 각 격자에 ITM 점수 기록
         Value Map의 해당 그리드에 ITM 점수 기록
 
-Step 3: 프론티어별 평균 Value 계산
+Step 4: 프론티어별 평균 Value 계산
         V_frontier = mean(Value Map cells near frontier)
 
-Step 4: 가장 높은 Value를 가진 프론티어로 이동
+Step 5: 가장 높은 Value를 가진 프론티어로 이동
         next_goal = argmax(V_frontier)
 ```
 
@@ -430,6 +477,10 @@ ApexNav: Multi-modal VLM Ensemble
 ![ApexNav System Pipeline](./images/pipeline.jpg)
 *Figure 4: ApexNav 시스템 파이프라인. (좌) LLM 기반 유사 객체 리스트 생성, (중) Frontier Map + Semantic Score Map으로 적응형 탐색 전략 결정, (우) Target-centric Semantic Fusion을 통한 신뢰성 있는 객체 식별 및 Safe Waypoint Navigation.*
 
+**LLM의 역할**: 파이프라인 첫 단계에서 LLM(Large Language Model, 예: GPT 계열)에 목표 객체를 입력하면, **의미적으로 관련된 유사 객체 리스트**를 생성한다. 예를 들어 "refrigerator"를 찾으라고 하면 LLM이 ["kitchen", "microwave", "oven"] 등을 반환한다. 이 리스트는 탐색 시 "냉장고 근처에 있을 법한 객체"를 단서로 활용하여, 부엌 방향으로 탐색을 유도하는 데 사용된다.
+
+**로봇의 이동 방식**: 로봇은 연속적인 조이스틱 제어가 아니라 **이산적(discrete) 행동**으로 움직인다. 매 스텝마다 (1) 0.25m 전진, (2) 좌/우 30° 회전, (3) STOP(도착 선언) 중 하나를 선택한다. 시뮬레이터(Habitat)의 표준 행동 공간이며, 실제 로봇에서도 동일한 이산 명령으로 제어한다.
+
 ### 5.2 Target-Centric Semantic Fusion (타겟 중심 의미론적 융합)
 
 #### 5.2.1 핵심 아이디어
@@ -529,6 +580,8 @@ ApexNav (신뢰도 제곱 융합, C² 비선형 누적):
 ![TSP-based Exploration](./images/tsp_show.jpg)
 *Figure 7: Semantic Score Map 위에서의 TSP 투어 계획. 빨간 원(Low Score 프론티어)은 제외되고, 파란 원(High Score 프론티어)만 선별되어 LKH 알고리즘으로 최적 방문 순서(노란 화살표)가 계산된다. 이를 통해 의미론적으로 유망한 프론티어들을 최단 경로로 순회한다.*
 
+적응형 탐색이 "어디로 갈 것인가"를 결정한다면, 다음 단계는 "목표 객체를 정말 찾았는가"를 검증하는 것이다. ApexNav는 단일 모델에 의존하지 않고, 4개의 서로 다른 VLM을 교차 검증하여 환각을 억제한다.
+
 ### 5.4 다중 모달 VLM 앙상블
 
 ApexNav는 4개의 VLM을 앙상블하여 환각을 억제한다:
@@ -569,6 +622,16 @@ Detection & Verification Pipeline:
           │ THEN: Reject                 │
           └──────────────────────────────┘
 ```
+
+**각 모델의 역할 정리:**
+- **GroundingDINO**: "이 텍스트에 해당하는 객체가 이미지 어디에 있는가?" → 바운딩 박스 출력
+- **YOLOv7**: COCO 80개 카테고리에 대한 빠른 2차 검증 (GroundingDINO와 독립적으로 검출)
+- **Mobile-SAM**: GroundingDINO가 찾은 바운딩 박스 영역을 **픽셀 단위로 정밀 분할** (객체 윤곽 추출)
+- **BLIP-2 ITM**: 분할된 객체 이미지와 텍스트의 매칭 확률을 최종 계산
+
+> 하나의 모델만 검출했다면 환각 가능성이 높으므로 "의심" 상태로 분류하고, 더 가까이 접근하여 재확인한다.
+
+위의 모든 구성 요소(Semantic Fusion, Adaptive Exploration, VLM Ensemble)를 하나의 시스템으로 통합하여 실행 흐름을 관리하는 것이 아래의 유한 상태 기계(FSM)이다. FSM은 로봇이 현재 어떤 상태인지(탐색 중, 목표 접근 중, 의심 객체 재확인 중 등)를 추적하고, 상황에 따라 다음 행동을 결정한다.
 
 ### 5.5 Finite State Machine (유한 상태 기계)
 
@@ -613,6 +676,8 @@ Detection & Verification Pipeline:
 | **MP3D** | 90+ | 복잡한 다층 구조 | 높음 |
 
 ### 6.2 주요 성능 비교 (Table I from Paper)
+
+> **성능 지표 참고**: SR(Success Rate)은 목표 객체에 도달한 비율이고, SPL은 SR에 경로 효율성을 반영한 지표이다(Section 2.4 용어 정리 참조). 두 지표 모두 높을수록 좋다. SR이 높아도 SPL이 낮으면 "도달은 하지만 먼 길을 돌아갔다"는 의미이다.
 
 #### HM3Dv1 결과
 
@@ -833,7 +898,7 @@ Detection & Verification Pipeline:
 
 **Q4: "TSP 솔버(LKH)가 실시간에 적합한가?"**
 
-> LKH는 프론티어 수 10-20개 수준에서 수 밀리초 내 해를 찾는다. 대규모 환경에서도 다항식 시간이며, 최적해 대비 1-2% 이내의 근사해를 보장한다.
+> TSP는 NP-hard 문제로 일반적으로 최적해를 구하기 어렵지만, LKH는 **휴리스틱 근사 해법**으로 프론티어 수 10-20개 규모에서 수 밀리초 내 실용적 근사해를 산출한다. 최적해 대비 1-2% 이내의 품질을 보인다.
 
 ---
 
