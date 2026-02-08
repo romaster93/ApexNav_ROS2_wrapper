@@ -902,6 +902,111 @@ Detection & Verification Pipeline:
 
 ---
 
+## 11. 발전 방향: Vision-Planning Transformer 통합 (E2E로의 전환)
+
+### 11.1 RRT*former: 환경 인지 Transformer 기반 경로 계획
+
+**RRT\*former** (arXiv 2511.15414, 2025)는 기존 RRT\* 알고리즘의 무작위 샘플링을 Transformer로 대체하여, 환경 특징과 탐색 이력을 기반으로 **학습된 샘플링**을 수행하는 경로 계획 알고리즘이다.
+
+![RRT*former Sampler Model](./images/refs/rrtformer_model.png)
+*Figure 9: RRT\*former Sampler Model 아키텍처. Feature Extractor(CNN)가 환경 특징을 추출하고, Transformer Encoder가 이전 샘플링 이력과 환경 특징을 결합하여 다음 샘플을 생성한다. Condition Validator가 목표 도달 여부를 판단한다. (출처: Feng et al., RRT\*former, arXiv 2025)*
+
+![RRT*former Demo](./images/refs/rrtformer_demo.png)
+*Figure 10: RRT\*former의 탐색 트리 비교. 기존 RRT\*의 무작위 확장 대비, RRT\*former는 환경을 인지하여 유망한 영역에 집중적으로 샘플링한다. (출처: Feng et al., RRT\*former, arXiv 2025)*
+
+### 11.2 ApexNav → Vision-Planning Transformer 통합 구상
+
+현재 ApexNav의 모듈형 파이프라인을 인식+계획 통합 Transformer로 발전시키는 방향을 제안한다.
+
+```
+현재 ApexNav (완전 모듈형):
+  RGB-D → [VLM 4개] → Semantic Fusion → Value Map → Adaptive Strategy → A*/TSP → Action
+          ├── 4개 독립 모델 ──┤  ├─ C² 수식 ─┤  ├─ 수작업 임계값 ──┤
+
+Vision-Planning Transformer (통합형):
+  RGB-D + "Find a chair" → [Vision Transformer] → [Planning Transformer] → Action
+                            환경 인식+융합 통합      탐색 전략+경로 통합
+```
+
+#### 아키텍처 상세
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                     Vision Transformer                         │
+│                                                                │
+│  입력: RGB-D 시퀀스 (t-k ~ t) + 텍스트 "Find a chair"         │
+│                                                                │
+│  ┌───────────┐   ┌───────────┐   ┌──────────────┐            │
+│  │ Image      │   │ Depth     │   │ Text Encoder │            │
+│  │ Encoder    │   │ Encoder   │   │ (Frozen LLM) │            │
+│  │ (ViT)      │   │ (ViT)     │   │              │            │
+│  └─────┬──────┘   └─────┬─────┘   └──────┬───────┘            │
+│        └────────────┬────┴────────────────┘                    │
+│                     ▼                                          │
+│           Cross-Attention Fusion                               │
+│           (4개 VLM + C² 융합을 한번에 대체)                     │
+│                     │                                          │
+│  출력: Spatial Feature Map (latent Value Map 역할)              │
+└─────────────┬────────────────────────────────────────────────┘
+              │
+              ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    Planning Transformer                        │
+│                                                                │
+│  입력: Spatial Feature + 탐색 이력 (이전 위치/관찰 시퀀스)     │
+│                                                                │
+│  ┌───────────────────────────────────────┐                     │
+│  │ Self-Attention over:                  │                     │
+│  │  · 현재 환경 특징 (Vision 출력)       │                     │
+│  │  · 과거 관찰 시퀀스 (메모리)          │  ← RRT*former      │
+│  │  · 로봇 위치/자세 이력               │    아이디어 적용     │
+│  └──────────────┬────────────────────────┘                     │
+│                 ▼                                              │
+│  출력: Next Waypoint (x, y) 또는 Action (전진/회전/STOP)       │
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### 대체되는 모듈
+
+| 대체 대상 | 현재 ApexNav (모듈형) | Vision-Planning Transformer (통합형) |
+|----------|----------------------|-------------------------------------|
+| VLM 4개 앙상블 | GroundingDINO + BLIP-2 + SAM + YOLOv7 | Vision Transformer 하나로 통합 |
+| Semantic Fusion | C² 수작업 수식 | Cross-Attention이 자동 학습 |
+| Value Map | 명시적 2D 격자 | Latent space (암묵적) |
+| 탐색 전략 | σ/r 임계값 기반 4정책 | Planning Transformer 직접 출력 |
+| 경로 계획 | A* / LKH TSP | Waypoint 직접 예측 |
+
+#### RRT*former 아이디어의 적용 지점
+
+RRT\*former의 **"환경 특징(CNN) + 이전 샘플 이력(Transformer) → 다음 유망 지점 예측"** 구조를 Planning Transformer에 적용한다:
+
+| RRT\*former 요소 | Navigation 대응 |
+|-----------------|-----------------|
+| 환경 맵 (CNN 특징) | Value Map / Spatial Feature |
+| 이전 샘플 노드 이력 | 이전 방문 프론티어/위치 시퀀스 |
+| 다음 샘플 생성 | 다음 탐색 목표 프론티어 선택 |
+| Condition Validator | STOP 조건 판단 (목표 도달 여부) |
+
+### 11.3 주요 도전과제
+
+| 도전과제 | 설명 | 완화 방안 |
+|---------|------|----------|
+| **학습 데이터** | 대규모 네비게이션 trajectory 필요 | HM3D/MP3D 시뮬레이터에서 수집 |
+| **Zero-Shot 유지** | 학습 기반 전환 시 범용성 감소 | Frozen backbone (CLIP, DINOv2) 사용 |
+| **해석 가능성** | Value Map이 latent space로 이동 | Attention Map 시각화로 부분 보완 |
+| **Sim-to-Real** | 시뮬레이터 학습 모델의 실환경 이전 | Domain randomization, 실데이터 fine-tuning |
+
+### 11.4 관련 연구
+
+| 논문 | 발표처 | 접근법 |
+|------|--------|--------|
+| **RRT\*former** (Feng et al.) | arXiv 2025 | Transformer 기반 환경 인지 샘플링으로 RRT\* 개선 |
+| **ViNT** (Shah et al.) | CoRL 2023 | Vision Transformer → diffusion policy로 waypoint 예측 |
+| **NoMaD** (Sridhar et al.) | RSS 2024 | 이미지 시퀀스 → goal-conditioned 탐색 정책 |
+| **NaviFormer** (Chen et al.) | AAAI 2025 | Spatio-temporal context Transformer로 Object Navigation |
+
+---
+
 ## 참고문헌 (References)
 
 ### 핵심 논문
@@ -935,6 +1040,16 @@ Detection & Verification Pipeline:
 11. **LKH** — Helsgaun, K., "An Effective Implementation of the Lin-Kernighan Traveling Salesman Heuristic," *European Journal of Operational Research*, 2000.
 
 12. **FUEL** — Zhou, B. et al., "FUEL: Fast UAV Exploration using Incremental Frontier Structure and Hierarchical Planning," *IEEE RA-L*, 2021.
+
+### E2E Navigation & Transformer Planning
+
+15. **RRT\*former** — Feng, M. et al., "RRT\*former: Environment-Aware Sampling-Based Motion Planning using Transformer," *arXiv:2511.15414*, 2025. [arXiv:2511.15414](https://arxiv.org/abs/2511.15414)
+
+16. **ViNT** — Shah, D. et al., "ViNT: A Foundation Model for Visual Navigation," *CoRL 2023*. [arXiv:2306.14846](https://arxiv.org/abs/2306.14846)
+
+17. **NoMaD** — Sridhar, A. et al., "NoMaD: Goal Masking Diffusion Policies for Navigation and Exploration," *RSS 2024*. [arXiv:2310.07896](https://arxiv.org/abs/2310.07896)
+
+18. **NaviFormer** — Chen, X. et al., "NaviFormer: A Spatio-Temporal Context-Aware Transformer for Object Navigation," *AAAI 2025*.
 
 ### 시뮬레이터 및 데이터셋
 
