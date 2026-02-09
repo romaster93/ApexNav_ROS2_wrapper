@@ -101,7 +101,7 @@ cd ApexNav_ROS2_wrapper
 #### 2.2 Create Conda Environment
 ``` bash
 conda env create -f apexnav_environment.yaml -y
-conda activate apexnav
+conda activate apexnav_ros2
 ```
 
 #### 2.3 Pytorch
@@ -165,7 +165,7 @@ unzip data/datasets/objectnav/mp3d/v1.zip -d data/datasets/objectnav/mp3d/v1 && 
 ## Usage
 > All following commands should be run in the conda environment with ROS2 sourced:
 > ```bash
-> conda activate apexnav
+> conda activate apexnav_ros2
 > source /opt/ros/jazzy/setup.bash
 > source install/setup.bash
 > ```
@@ -228,7 +228,7 @@ ros2 launch exploration_manager exploration_traj.launch.py
 # Terminal 3: Habitat simulator with velocity control
 python habitat_vel_control.py
 ```
-> In this mode, use RViz's **"2D Nav Goal"** tool to manually trigger autonomous exploration.
+> In this mode, use RViz's **"2D Goal Pose"** tool to manually trigger autonomous exploration.
 > For detailed real-world deployment instructions, see the [Real World README](./real_world_test_example/README.md).
 
 <p align="center" style="font-size: 1.0em;">
