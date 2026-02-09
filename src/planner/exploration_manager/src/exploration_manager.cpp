@@ -14,6 +14,7 @@
 #include <plan_env/map_ros.h>
 #include <path_searching/kino_astar.h>
 #include <trajectory_manager/optimizer.h>
+#include <cmath>
 
 using namespace Eigen;
 
@@ -506,8 +507,25 @@ void ExplorationManager::computeATSPTour(
 Vector2d ExplorationManager::findNearestObjectPoint(
     const Vector3d& start, const pcl::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& object_cloud)
 {
+  if (!object_cloud || object_cloud->empty()) {
+    RCLCPP_ERROR(node_->get_logger(), "[Bug] Object cloud is empty.");
+    return Vector2d(-1000.0, -1000.0);
+  }
+
+  // Filter out NaN/Inf points
+  pcl::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> valid_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  for (const auto& pt : object_cloud->points) {
+    if (std::isfinite(pt.x) && std::isfinite(pt.y) && std::isfinite(pt.z)) {
+      valid_cloud->points.push_back(pt);
+    }
+  }
+  if (valid_cloud->empty()) {
+    RCLCPP_ERROR(node_->get_logger(), "[Bug] All object cloud points are NaN/Inf.");
+    return Vector2d(-1000.0, -1000.0);
+  }
+
   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-  kdtree.setInputCloud(object_cloud);
+  kdtree.setInputCloud(valid_cloud);
   std::vector<int> pointIdxNKNSearch(1);
   std::vector<float> pointNKNSquaredDistance(1);
 
@@ -516,13 +534,19 @@ Vector2d ExplorationManager::findNearestObjectPoint(
   cur_pt.y = start(1);
   cur_pt.z = start(2);
 
+  // Check if search point is valid
+  if (!std::isfinite(cur_pt.x) || !std::isfinite(cur_pt.y) || !std::isfinite(cur_pt.z)) {
+    RCLCPP_ERROR(node_->get_logger(), "[Bug] Start point has NaN/Inf coordinates.");
+    return Vector2d(-1000.0, -1000.0);
+  }
+
   if (kdtree.nearestKSearch(cur_pt, 1, pointIdxNKNSearch, pointNKNSquaredDistance) <= 0) {
     RCLCPP_ERROR(node_->get_logger(), "[Bug] No nearest object point found.");
     return Vector2d(-1000.0, -1000.0);  // Error indicator
   }
 
   int nearest_idx = pointIdxNKNSearch[0];
-  auto nearest_point = object_cloud->points[nearest_idx];
+  auto nearest_point = valid_cloud->points[nearest_idx];
   return Vector2d(nearest_point.x, nearest_point.y);
 }
 

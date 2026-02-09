@@ -74,10 +74,6 @@ class HabitatVelControlNode(Node):
         msg.data = float(self.fusion_score)
         self.confidence_threshold_pub.publish(msg)
 
-        # Publish trigger for FSM
-        trigger = PoseStamped()
-        self.trigger_pub.publish(trigger)
-
     def start_observation_timer(self):
         """Start timer for publishing observations"""
         self.pub_timer = self.create_timer(0.1, self.publish_observations_callback)
@@ -265,6 +261,12 @@ def run_simulation(cfg: DictConfig, node: HabitatVelControlNode):
         msg = Float64()
         msg.data = 0.5
         node.confidence_threshold_pub.publish(msg)
+
+        # Republish label periodically so late-joining nodes can receive it
+        label_msg = String()
+        label_msg.data = label
+        node.label_pub.publish(label_msg)
+
         observations["rgb"] = transform_rgb_bgr(observations["rgb"])
         del observations["camera_pitch"]
         del observations["linear_velocity"]

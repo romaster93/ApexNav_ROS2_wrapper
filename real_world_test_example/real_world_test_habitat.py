@@ -65,10 +65,15 @@ class RealWorldNode(Node):
             depth=10
         )
 
-        # Configure subscribers using message_filters
-        self.rgb_sub_ = message_filters.Subscriber(self, Image, "/habitat/camera_rgb")
-        self.depth_sub_ = message_filters.Subscriber(self, Image, "/habitat/camera_depth")
-        self.sensor_pose_sub_ = message_filters.Subscriber(self, Odometry, "/habitat/sensor_pose")
+        # Configure subscribers using message_filters with BEST_EFFORT QoS
+        best_effort_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+        self.rgb_sub_ = message_filters.Subscriber(self, Image, "/habitat/camera_rgb", qos_profile=best_effort_qos)
+        self.depth_sub_ = message_filters.Subscriber(self, Image, "/habitat/camera_depth", qos_profile=best_effort_qos)
+        self.sensor_pose_sub_ = message_filters.Subscriber(self, Odometry, "/habitat/sensor_pose", qos_profile=best_effort_qos)
 
         self.create_subscription(Odometry, "/habitat/odom", self.odom_callback, qos)
 

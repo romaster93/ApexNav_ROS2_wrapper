@@ -169,10 +169,23 @@ void ExplorationFSMReal::FSMCallback()
       TrajPlannerResult res = callTrajectoryPlanner();
 
       if (res == TrajPlannerResult::FAILED) {
-        RCLCPP_WARN(node_->get_logger(), "[Real] Plan trajectory failed");
+        ++replan_fail_count_;
         fd_->static_state_ = true;
+        if (replan_fail_count_ >= FSMConstantsReal::MAX_REPLAN_FAILURES) {
+          RCLCPP_ERROR(node_->get_logger(),
+              "[Real] Plan trajectory failed %d times, stopping and waiting for new trigger",
+              replan_fail_count_);
+          emergencyStop();
+          replan_fail_count_ = 0;
+          transitState(RealFSM::State::WAIT_TRIGGER, "FSM");
+        } else {
+          RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 500,
+              "[Real] Plan trajectory failed (%d/%d), retrying...",
+              replan_fail_count_, FSMConstantsReal::MAX_REPLAN_FAILURES);
+        }
       }
       else if (res == TrajPlannerResult::SUCCESS) {
+        replan_fail_count_ = 0;
         transitState(RealFSM::State::EXEC_TRAJ, "FSM");
       }
       else {  // TrajPlannerResult::MISSION_COMPLETE
@@ -502,6 +515,7 @@ void ExplorationFSMReal::triggerCallback(const geometry_msgs::msg::PoseStamped::
     return;
 
   fd_->trigger_ = true;
+  replan_fail_count_ = 0;
   RCLCPP_INFO(node_->get_logger(), "[Real] Exploration triggered!");
   transitState(RealFSM::State::PLAN_TRAJ, "triggerCallback");
 }

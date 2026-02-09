@@ -55,7 +55,7 @@ constexpr double MIN_SAFE_DISTANCE = 0.15;
 // Counters / thresholds
 constexpr int MAX_STUCKING_COUNT = 25;
 constexpr int MAX_STUCKING_NEXT_POS_COUNT = 14;
-constexpr int MAX_REPLAN_FAILURES = 3;  // Max consecutive replan failures
+constexpr int MAX_REPLAN_FAILURES = 200;  // Max consecutive replan failures (~2s at 10ms interval)
 
 // Cost weights
 constexpr double TARGET_WEIGHT = 150.0;
@@ -138,6 +138,7 @@ private:
 
   /* Trajectory execution status */
   // Trajectory state is tracked in fd_->static_state_
+  int replan_fail_count_ = 0;
 
   /* Exploration Planner */
   TrajPlannerResult callTrajectoryPlanner();
