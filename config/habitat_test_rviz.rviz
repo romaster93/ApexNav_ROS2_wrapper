@@ -1,0 +1,164 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/TF
+      Enabled: false
+      Name: TF
+
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: Occupied
+      Topic:
+        Value: /grid_map/occupied
+        Reliability Policy: Best Effort
+      Color: 255; 0; 0
+      Size (m): 0.05
+      Style: Squares
+
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: Free
+      Topic:
+        Value: /grid_map/free
+        Reliability Policy: Best Effort
+      Color: 0; 200; 0
+      Size (m): 0.05
+      Style: Squares
+      Alpha: 0.3
+
+    - Class: rviz_default_plugins/PointCloud2
+      Enabled: true
+      Name: Occupied Inflate
+      Topic:
+        Value: /grid_map/occupied_inflate
+        Reliability Policy: Best Effort
+      Color: 255; 165; 0
+      Size (m): 0.05
+      Style: Squares
+      Alpha: 0.4
+
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Frontier
+      Topic:
+        Value: /planning_vis/frontier
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: Frontier Array
+      Topic:
+        Value: /planning_vis/frontier_array
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/MarkerArray
+      Enabled: true
+      Name: KinoAstar Path
+      Topic:
+        Value: /kinoastar/FlatPath
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/Path
+      Enabled: true
+      Name: KinoAstar Traj
+      Topic:
+        Value: /kinoastar/FlatTraj
+        Reliability Policy: Reliable
+      Color: 0; 255; 255
+      Line Style: Billboards
+      Line Width: 0.03
+
+    - Class: rviz_default_plugins/Path
+      Enabled: true
+      Name: MINCO Path
+      Topic:
+        Value: /trajectory/mincoPath
+        Reliability Policy: Reliable
+      Color: 255; 0; 255
+      Line Style: Billboards
+      Line Width: 0.05
+
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Trajectory Vis
+      Topic:
+        Value: /planning_vis/trajectory
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/Path
+      Enabled: true
+      Name: MPC Predict
+      Topic:
+        Value: /mpc_car/predict_path
+        Reliability Policy: Reliable
+      Color: 255; 255; 0
+      Line Style: Billboards
+      Line Width: 0.02
+
+    - Class: rviz_default_plugins/Path
+      Enabled: true
+      Name: MPC Reference
+      Topic:
+        Value: /mpc_car/reference_path
+        Reliability Policy: Reliable
+      Color: 0; 128; 255
+      Line Style: Billboards
+      Line Width: 0.02
+
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Viewpoints
+      Topic:
+        Value: /planning_vis/viewpoints
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/Marker
+      Enabled: true
+      Name: Robot Marker
+      Topic:
+        Value: /planning_vis/robot
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/Image
+      Enabled: false
+      Name: RGB
+      Topic:
+        Value: /habitat/camera_rgb
+        Reliability Policy: Reliable
+
+    - Class: rviz_default_plugins/Image
+      Enabled: false
+      Name: Depth
+      Topic:
+        Value: /habitat/camera_depth
+        Reliability Policy: Best Effort
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: world
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic: /move_base_simple/goal
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Scale: 30
+      X: 0
+      Y: 0
+      Name: Current View
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Width: 1400

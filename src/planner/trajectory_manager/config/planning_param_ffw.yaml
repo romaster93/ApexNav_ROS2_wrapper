@@ -1,0 +1,107 @@
+# ===========================================================================
+# 로봇 치수 실측값 LOCK
+# 출처: 사용자 실측 (2026-04-01, FFW swerve drive)
+# length=0.56, width=0.51, wheel_base=0.43 — 변경 금지.
+# 자동 생성/재튜닝 PR은 reject. URDF 변경 시 재측정 후 이 라인 업데이트.
+# ===========================================================================
+/**:
+  ros__parameters:
+    ######################## car model ########################
+    # Physical parameters (FFW-SG2 swerve robot)
+    max_vel: 0.5   # 2026-04-07: 0.1→0.5. 내부 max_vel_ = 0.5*0.6 = 0.3 m/s (memory 튜닝 목표). 속도 기반 예측 한계는 Open Q로 분리.
+    max_acc: 2.0
+    max_domega: 1.0
+    zoom_omega: 0.25
+    max_cur: 10.0
+
+    # Wheelbase (front-rear distance from swerve_controller.py: front_x=0.15 + rear_x=0.278)
+    wheel_base: 0.43
+
+    # Vehicle dimensions (FFW-SG2, 사용자 실측 2026-04-01, LOCK)
+    length: 0.56
+    width: 0.51
+    height: 0.30
+
+    ######################## kinoastar ########################
+    # A* oneshot curvature
+    astar_cur: 10
+
+    # Forward search displacement
+    step_arc: 0.2
+
+    # Greedy search coefficient
+    lambda_heu: 1.0
+
+    # Maximum search time
+    max_seach_time: 2.0
+
+    # Discretization interval for oneshot intermediate point collision checks
+    checkl: 0.05
+
+    # Number of checks when expanding states in A*
+    check_num: 5
+
+    # Considered stationary if speed below this
+    non_siguav: 0.01
+
+    # Oneshot range (TODO: reducing it may cause self-rotation)
+    oneshot_range: 0.8
+
+    # Sampling time passed to backend
+    sampletime: 0.1
+
+    # Collision check sampling interval; recommend half of grid_interval
+    collision_interval: 0.1
+
+    # ROS2: kino_astar namespaced parameters (code reads with kino_astar. prefix)
+    kino_astar:
+      max_vel: 0.5   # 2026-04-07: 0.1→0.5. 내부 max_vel_ = 0.5*0.6 = 0.3 m/s (memory 튜닝 목표). 속도 기반 예측 한계는 Open Q로 분리.
+      max_acc: 2.0
+      max_cur: 10.0
+      wheel_base: 0.43
+      non_siguav: 0.01
+      collision_interval: 0.1
+      length: 0.56
+      width: 0.51
+      height: 0.30
+      lambda_heu: 1.0
+      max_seach_time: 2.0
+      step_arc: 0.2
+      checkl: 0.05
+      check_num: 5
+      oneshot_range: 0.8
+      sampletime: 0.1
+      is_swerve: true   # 2026-04-07: FFW swerve drive. axis-aligned footprint box. InteriorAgent 후속 PR에서 재평가.
+
+    ######################## global planning ########################
+    time_weight: 15.0
+
+    # v_weight  a_weight omega_weight  domega_weight colli_weight
+    penaltyWeights: [5.0, 5.0, 20.0, 5.0, 1000.0]   # 원복: MINCO bypass로 inert, 값은 ApexNAV 기본 유지
+
+    # Additional sampling for continuity
+    denseResolution: 20
+
+    # Average sampling
+    sparseResolution: 8
+
+    # Backend sampling time
+    timeResolution: 1
+
+    # Safety distance (robot half-diagonal 0.48 + margin)
+    safe_dist: 0.55
+
+    # ROS2: optimizer namespaced parameters (code reads with optimizer. prefix)
+    optimizer:
+      max_vel: 0.5   # 2026-04-07: 0.1→0.5. 내부 max_vel_ = 0.5*0.6 = 0.3 m/s (memory 튜닝 목표). 속도 기반 예측 한계는 Open Q로 분리.
+      max_acc: 2.0
+      max_domega: 1.0
+      wheel_base: 0.43
+      non_siguav: 0.01
+      zoom_omega: 0.25
+      denseResolution: 20
+      sparseResolution: 8
+      timeResolution: 1.0
+      time_weight: 15.0
+      safe_dist: 0.55
+      penaltyWeights: [5.0, 5.0, 20.0, 5.0, 1000.0]   # 원복: MINCO bypass로 inert, 값은 ApexNAV 기본 유지
