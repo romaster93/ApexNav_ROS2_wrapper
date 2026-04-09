@@ -40,17 +40,19 @@ def generate_launch_description():
         description='Topic of odometry (VIO or LIO)'
     )
     sensor_pose_topic_arg = DeclareLaunchArgument(
-        'sensor_pose_topic', default_value='/habitat/sensor_pose',
-        description='Transform of camera frame in world frame'
+        'sensor_pose_topic', default_value='/habitat/camera_pose',
+        description='Camera pose from TF-based bridge (actual camera position)'
     )
     depth_topic_arg = DeclareLaunchArgument(
         'depth_topic', default_value='/habitat/camera_depth',
-        description='Depth image topic (640x480 by default)'
+        description='Normalized depth image topic (32FC1, [0,1] range)'
     )
     cx_arg = DeclareLaunchArgument('cx', default_value='320.0')
     cy_arg = DeclareLaunchArgument('cy', default_value='240.0')
-    fx_arg = DeclareLaunchArgument('fx', default_value='388.1910413097385')
-    fy_arg = DeclareLaunchArgument('fy', default_value='422.0475153598262')
+    fx_arg = DeclareLaunchArgument('fx', default_value='245.33',
+        description='Camera fx (from /zed_mini/camera_info K matrix)')
+    fy_arg = DeclareLaunchArgument('fy', default_value='245.33',
+        description='Camera fy (from /zed_mini/camera_info K matrix)')
 
     # Include algorithm_traj launch file
     algorithm_traj_launch = IncludeLaunchDescription(
@@ -71,26 +73,32 @@ def generate_launch_description():
         }.items()
     )
 
-    # Trajectory server for real robot control
-    traj_server_node = Node(
-        package='trajectory_manager',
-        executable='traj_server',
-        name='traj_server_node',
-        output='screen',
-        parameters=[
-            control_param_file,
-            {
-                'need_init': False,
-                'max_correction_vel': 1.0,
-                'max_correction_omega': 1.57,
-            }
-        ],
-        remappings=[
-            ('odometry', LaunchConfiguration('odom_topic')),
-            ('trajectory', '/planning/trajectory'),
-            ('cmd_vel', '/cmd_vel'),
-        ]
-    )
+    # === 2026-04-07 traj_server disabled ===
+    # The unicycle MPC in trajectory_manager/traj_server cannot exploit the
+    # FFW-SG2 swerve base (holonomic vy). It is replaced by the external
+    # `scripts/swerve_path_follower.py` (started manually outside this launch),
+    # which subscribes to /planning/trajectory directly and publishes /cmd_vel
+    # with full vx/vy. Re-enable by uncommenting the block below and stopping
+    # swerve_path_follower.py.
+    # traj_server_node = Node(
+    #     package='trajectory_manager',
+    #     executable='traj_server',
+    #     name='traj_server_node',
+    #     output='screen',
+    #     parameters=[
+    #         control_param_file,
+    #         {
+    #             'need_init': False,
+    #             'max_correction_vel': 0.1,
+    #             'max_correction_omega': 0.3,
+    #         }
+    #     ],
+    #     remappings=[
+    #         ('odometry', LaunchConfiguration('odom_topic')),
+    #         ('trajectory', '/planning/trajectory'),
+    #         ('cmd_vel', '/cmd_vel'),
+    #     ]
+    # )
 
     return LaunchDescription([
         # Launch arguments
@@ -106,6 +114,6 @@ def generate_launch_description():
         fy_arg,
         # Include algorithm
         algorithm_traj_launch,
-        # Trajectory server
-        traj_server_node,
+        # traj_server disabled — see swerve_path_follower.py
+        # traj_server_node,
     ])
