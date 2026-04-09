@@ -96,6 +96,10 @@ void MapROS::init()
   skip_pixel_ = node_->get_parameter("map_ros/skip_pixel").as_int();
   frame_id_ = node_->get_parameter("map_ros/frame_id").as_string();
   virtual_ground_height_ = node_->get_parameter("map_ros/virtual_ground_height").as_double();
+  if (!node_->has_parameter("map_ros/free_ray_extrapolation")) {
+    node_->declare_parameter("map_ros/free_ray_extrapolation", 0.95);
+  }
+  free_ray_extrapolation_factor_ = node_->get_parameter("map_ros/free_ray_extrapolation").as_double();
 
   // Handle Habitat simulator vs real-world configuration
   if (!node_->has_parameter("is_real_world")) {
@@ -125,6 +129,7 @@ void MapROS::init()
   // Initialize point cloud data structures
   depth_cloud_.reset(new PointCloud3D());
   filtered_depth_cloud2d_.reset(new PointCloud2D());
+  free_ray_cloud2d_.reset(new PointCloud2D());
 
   // Pre-allocate point cloud vectors for efficiency
   proj_points_.resize(640 * 480 / (skip_pixel_ * skip_pixel_));
@@ -381,11 +386,67 @@ void MapROS::depthPoseCallback(
   processDepthImage();
   filterPointCloudToXY();
 
+  // Pre-seed free-only rays and force clear BEFORE inputDepthCloud2D
+  // so they are included in the same cache flush cycle.
+
+  // Cast free-only rays for max-range pixels (no occupied endpoints)
+  if (!free_ray_cloud2d_->empty()) {
+    Eigen::Vector2d sensor_pos2d(camera_pos_(0), camera_pos_(1));
+    Eigen::Vector2i idx;
+    for (auto& pt : free_ray_cloud2d_->points) {
+      Eigen::Vector2d pt_w(pt.x, pt.y);
+      if (!map_->isInMap(pt_w)) continue;
+      // Dedup: skip if this endpoint was already processed
+      Eigen::Vector2i end_idx;
+      map_->posToIndex(pt_w, end_idx);
+      int end_adr = map_->toAddress(end_idx);
+      if (map_->md_->flag_rayend_[end_adr] == map_->md_->raycast_num_) continue;
+      map_->md_->flag_rayend_[end_adr] = map_->md_->raycast_num_;
+      // Raycast from endpoint toward sensor, marking all cells as free
+      map_->caster_->input(pt_w, sensor_pos2d);
+      while (map_->caster_->nextId(idx)) {
+        map_->setCacheOccupancy(map_->toAddress(idx), 0);  // free
+      }
+    }
+  }
+
+  // Force clear occupied within 1.5m of camera (covers base_link + offset)
+  {
+    Eigen::Vector2d robot_pos2d(camera_pos_(0), camera_pos_(1));
+    int clear_radius = (int)(1.5 / map_->mp_->resolution_);
+    Eigen::Vector2i robot_idx;
+    map_->posToIndex(robot_pos2d, robot_idx);
+    for (int dx = -clear_radius; dx <= clear_radius; dx++) {
+      for (int dy = -clear_radius; dy <= clear_radius; dy++) {
+        if (dx * dx + dy * dy > clear_radius * clear_radius) continue;
+        Eigen::Vector2i idx(robot_idx[0] + dx, robot_idx[1] + dy);
+        if (!map_->isInMap(idx)) continue;
+        int adr = map_->toAddress(idx);
+        map_->setCacheOccupancy(adr, 0);  // force free
+      }
+    }
+  }
+
   // Update occupancy grid with filtered depth data
+  // (cache flush happens inside, processing free-only + force clear + depth together)
   vector<Eigen::Vector2i> free_grids;
-  // Dilate free_grids to ensure more complete coverage
   dilateGrids(free_grids, 1);
   map_->inputDepthCloud2D(filtered_depth_cloud2d_, camera_pos_, free_grids);
+
+  // Expand local_update bounds to include free-only ray endpoints
+  if (!free_ray_cloud2d_->empty()) {
+    for (auto& pt : free_ray_cloud2d_->points) {
+      Eigen::Vector2d pt_w(pt.x, pt.y);
+      if (!map_->isInMap(pt_w)) continue;
+      for (int k = 0; k < 2; ++k) {
+        map_->md_->local_update_mind_[k] = std::min(map_->md_->local_update_mind_[k], pt_w[k]);
+        map_->md_->local_update_maxd_[k] = std::max(map_->md_->local_update_maxd_[k], pt_w[k]);
+      }
+    }
+    map_->posToIndex(map_->md_->local_update_mind_, map_->md_->local_update_min_);
+    map_->posToIndex(map_->md_->local_update_maxd_, map_->md_->local_update_max_);
+  }
+
   double process_time = (node_->get_clock()->now() - t1).seconds();
   RCLCPP_INFO_THROTTLE(node_->get_logger(), *node_->get_clock(), 50000,
       "[Calculating Time] Grid Map process time = %.3f s", process_time);
@@ -409,6 +470,7 @@ void MapROS::depthPoseCallback(
 void MapROS::processDepthImage()
 {
   proj_points_cnt_ = 0;
+  free_ray_cloud2d_->clear();
 
   uint16_t* row_ptr;
   int cols = depth_image_->cols;
@@ -428,10 +490,25 @@ void MapROS::processDepthImage()
       row_ptr = row_ptr + skip_pixel_;
 
       // Apply depth range filtering
-      if (depth > depth_filter_maxdist_)
-        depth = depth_filter_maxdist_;
-      else if (depth < depth_filter_mindist_)
+      if (depth < depth_filter_mindist_)
         continue;
+      // Max-range: don't add to depth_cloud_ (avoids fake occupied walls).
+      // Instead, compute 2D endpoint for free-only ray casting later.
+      if (depth >= depth_filter_maxdist_ * 0.96) {
+        double free_depth = depth_filter_maxdist_ * free_ray_extrapolation_factor_;
+        pt_cur(0) = (u - cx_) * free_depth / fx_;
+        pt_cur(1) = (v - cy_) * free_depth / fy_;
+        pt_cur(2) = free_depth;
+        pt_world = camera_r * pt_cur + camera_pos_;
+        // Check height filter
+        if (pt_world[2] <= filter_min_height_ || pt_world[2] >= filter_max_height_)
+          continue;
+        Point2D pt2d;
+        pt2d.x = pt_world[0];
+        pt2d.y = pt_world[1];
+        free_ray_cloud2d_->points.push_back(pt2d);
+        continue;
+      }
 
       // Project pixel to 3D camera coordinates
       pt_cur(0) = (u - cx_) * depth / fx_;
@@ -440,6 +517,7 @@ void MapROS::processDepthImage()
 
       // Transform to world coordinates
       pt_world = camera_r * pt_cur + camera_pos_;
+
       auto& pt = depth_cloud_->points[proj_points_cnt_++];
       pt.x = pt_world[0];
       pt.y = pt_world[1];

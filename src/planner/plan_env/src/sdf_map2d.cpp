@@ -177,10 +177,13 @@ void SDFMap2D::setCacheOccupancy(const int& adr, const int& occ)
     md_->cache_voxel_.push(adr);
 
   // Update hit/miss counters based on occupancy observation
-  if (occ == 0)
-    md_->count_miss_[adr] += 1;
-  else if (occ == 1)
+  // Once a cell is occupied (above occupancy threshold), never downgrade it
+  if (occ == 0) {
+    if (md_->occupancy_buffer_[adr] <= mp_->min_occupancy_log_)
+      md_->count_miss_[adr] += 1;  // Only allow miss for non-occupied cells
+  } else if (occ == 1) {
     md_->count_hit_[adr] += 1;
+  }
 }
 
 void SDFMap2D::inputVirtualGround(const pcl::PointCloud<pcl::PointXY>::Ptr& points)

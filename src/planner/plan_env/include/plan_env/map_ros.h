@@ -147,7 +147,8 @@ private:
   double k_depth_scaling_factor_;  ///< Depth value scaling factor for different sensors
   int skip_pixel_;                 ///< Pixel skip factor for processing efficiency
   std::string frame_id_;           ///< Reference frame ID for published data
-  double virtual_ground_height_;   ///< Virtual ground plane offset for navigation
+  double virtual_ground_height_;          ///< Virtual ground plane offset for navigation
+  double free_ray_extrapolation_factor_;  ///< Free-ray extrapolation distance factor (fraction of depth_filter_maxdist_)
 
   // Map state flags
   bool local_updated_, esdf_need_update_;
@@ -160,6 +161,7 @@ private:
   int proj_points_cnt_;                       ///< Count of valid projected points
   PointCloud3D::Ptr depth_cloud_;             ///< Raw 3D point cloud from depth sensor
   PointCloud2D::Ptr filtered_depth_cloud2d_;  ///< Filtered 2D point cloud for occupancy mapping
+  PointCloud2D::Ptr free_ray_cloud2d_;        ///< Max-range 2D endpoints for free-only ray casting
 
   // Object detection and ITM integration
   int continue_over_depth_count_;  ///< Counter for maintaining over-depth object consistency
