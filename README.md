@@ -31,6 +31,53 @@
 
 This is the **ROS2 Jazzy** port of [ApexNav](https://github.com/Robotics-STAR-Lab/ApexNav), originally built on ROS1 Noetic. The entire codebase has been migrated to work with **Ubuntu 24.04 + ROS2 Jazzy**.
 
+---
+
+### ⚡ `isaacsim-ffw-swerve` Branch — IsaacSim + Swerve Drive 통합
+
+> **이 branch는 NVIDIA IsaacSim 5.1.0 + ROBOTIS FFW-SG2 Swerve 로봇 전용 수정사항을 포함합니다.**
+> 원본 ApexNAV 코드는 [`main` branch](https://github.com/romaster93/ApexNav_ROS2_wrapper)에 보존되어 있습니다.
+>
+> 📖 **전체 가이드**: [isaacsim-aiworker-guide Step 10](https://github.com/romaster93/isaacsim-aiworker-guide/blob/main/guides/10-apexnav-autonomous.md)
+
+#### 주요 변경사항
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `kino_astar.h/cpp` | `is_swerve` 플래그 추가 — axis-aligned 충돌 체크 (Ackermann 회전 박스 대신) |
+| `map_ros.cpp/h` | max-range depth 전용 `free_ray_cloud2d_` 분리 — 개방 환경 가짜 벽 방지 |
+| `sdf_map2d.cpp` | `checkCollision` OPTIMISTIC 모드 — UNKNOWN 영역 통과 허용 |
+| `exploration_fsm_traj.cpp` | odom_far 임계값 0.6→1.5m 완화 (swerve P제어 특성 반영) |
+| `exploration_manager.h` | `searchFrontierPath` Astar2D OPTIMISTIC + FREE 셀 walkback |
+| `algorithm_traj.launch.py` | IsaacSim 파라미터 (fx/fy=245.33, frame_id=World, max_depth yaml 참조) |
+| `planning_param_ffw.yaml` | FFW-SG2 실측 치수 (length=0.56, width=0.51, is_swerve=true) |
+
+#### 왜 KinoAstar를 수정했는가?
+
+ApexNAV의 KinoAstar는 **Ackermann(자동차형) 로봇** 전제 설계:
+- 이동 방향 = 로봇 정면 → yaw 기반 회전 박스 충돌 체크
+- **Swerve 로봇**은 횡이동 가능 → yaw ≠ 이동 방향 → 회전 박스가 과잉 충돌 판정
+- 결과: `isCollisionPosYaw occ!!!!!!!!` 폭주 → trajectory 실패 → 조기 FINISH
+
+`is_swerve: true`로 axis-aligned 박스 사용 시 해결. 기존 로직은 `else` branch에 보존.
+
+#### IsaacSim 실행 방법
+
+```bash
+# 빌드
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select path_searching exploration_manager trajectory_manager --symlink-install
+source install/setup.bash
+
+# 실행 (IsaacSim Play 상태에서)
+ros2 launch exploration_manager exploration_traj.launch.py
+```
+
+> 전체 실행 순서 (bridge, swerve_controller 등 포함)는
+> [Step 10 가이드](https://github.com/romaster93/isaacsim-aiworker-guide/blob/main/guides/10-apexnav-autonomous.md)를 참고하세요.
+
+---
+
 ### What's Changed from the Original
 - **Build system**: catkin → ament_cmake + colcon
 - **C++ API**: roscpp → rclcpp
