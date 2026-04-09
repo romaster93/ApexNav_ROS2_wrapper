@@ -267,10 +267,14 @@ public:
     Eigen::Vector3d pos = traj_->getPos(elapsed_time);
     Eigen::Vector3d vel = traj_->getVel(elapsed_time);
 
+    // 2026-04-07 Step 3 (Secondary): SWERVE ref yaw decoupled from velocity
+    // tangent. Using atan2(vel) forced MPC to rotate for every path curve,
+    // triggering "Odom Far From Trajectory". Hold ref yaw at current odom yaw
+    // so the unicycle MPC keeps omega ~= 0 while following xy reference.
     Eigen::Vector3d ref;
     ref(0) = pos(0);
     ref(1) = pos(1);
-    ref(2) = atan2(vel(1), vel(0));
+    ref(2) = odom_yaw_;  // was: atan2(vel(1), vel(0))
     for (int i = 0; i < mpc_N_; ++i) {
       double temp_t = elapsed_time + i * mpc_dt_;
       if (temp_t <= traj_duration_) {
@@ -278,7 +282,7 @@ public:
         vel = traj_->getVel(temp_t);
         ref(0) = pos(0);
         ref(1) = pos(1);
-        ref(2) = atan2(vel(1), vel(0));
+        ref(2) = odom_yaw_;  // was: atan2(vel(1), vel(0))
       }
       xref_[i] = ref;
     }
@@ -373,7 +377,7 @@ public:
       vector<Eigen::Vector3d> path, double resolution, Eigen::Vector4d color, int id)
   {
     visualization_msgs::msg::Marker mk;
-    mk.header.frame_id = "world";
+    mk.header.frame_id = "World";
     mk.header.stamp = this->get_clock()->now();
     mk.type = visualization_msgs::msg::Marker::SPHERE_LIST;
     mk.action = visualization_msgs::msg::Marker::DELETE;

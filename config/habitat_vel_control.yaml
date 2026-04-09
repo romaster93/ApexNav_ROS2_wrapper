@@ -10,7 +10,7 @@ habitat_baselines:
 habitat:
   dataset:
     split: val
-    data_path: data/datasets/objectnav/hm3d/v2/{split}/{split}.json.gz
+    data_path: data/datasets/objectnav/hm3d/v1/{split}/{split}.json.gz
   environment:
     max_episode_steps: 500000000000000000000
     iterator_options:

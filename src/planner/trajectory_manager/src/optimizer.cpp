@@ -471,7 +471,7 @@ void Gcopter::visInnerPoints()
   visualization_msgs::msg::MarkerArray markerarray;
   visualization_msgs::msg::Marker marker;
 
-  marker.header.frame_id = "world";
+  marker.header.frame_id = "World";
   marker.ns = "initinnerPoint";
   marker.lifetime = rclcpp::Duration(0, 0);
   marker.type = visualization_msgs::msg::Marker::CYLINDER;
@@ -528,7 +528,7 @@ void Gcopter::visFinalInnerPoints()
   visualization_msgs::msg::MarkerArray markerarray;
   visualization_msgs::msg::Marker marker;
 
-  marker.header.frame_id = "world";
+  marker.header.frame_id = "World";
   marker.ns = "innerPoint";
   marker.lifetime = rclcpp::Duration(0, 0);
   marker.type = visualization_msgs::msg::Marker::CYLINDER;
@@ -586,7 +586,7 @@ void Gcopter::mincoInitTrajPub(
   Eigen::VectorXd currPos, currVel;
 
   nav_msgs::msg::Path path;
-  path.header.frame_id = "world";
+  path.header.frame_id = "World";
   path.header.stamp = node_->get_clock()->now();
 
   for (double time = 1e-5; time < total_time; time += 1e-4) {
@@ -607,7 +607,7 @@ void Gcopter::mincoInitTrajPub(
     R << cos(yaw), -sin(yaw), sin(yaw), cos(yaw);
 
     geometry_msgs::msg::PoseStamped pose;
-    pose.header.frame_id = "world";
+    pose.header.frame_id = "World";
     pose.header.stamp = node_->get_clock()->now();
     pose.pose.position.x = (currPos).x();
     pose.pose.position.y = (currPos).y();
@@ -641,7 +641,7 @@ void Gcopter::mincoInitPathPubwithAlpha(const std::vector<Trajectory<7, 3>>& fin
   visualization_msgs::msg::MarkerArray markerarraydelete;
   visualization_msgs::msg::MarkerArray markerarray;
   visualization_msgs::msg::Marker marker;
-  marker.header.frame_id = "world";
+  marker.header.frame_id = "World";
   marker.ns = "minco_opt_path_alpha_pub_";
   marker.lifetime = rclcpp::Duration(0, 0);
   marker.type = visualization_msgs::msg::Marker::CYLINDER;
@@ -667,7 +667,7 @@ void Gcopter::mincoInitPathPubwithAlpha(const std::vector<Trajectory<7, 3>>& fin
   marker.action = visualization_msgs::msg::Marker::ADD;
 
   nav_msgs::msg::Path path;
-  path.header.frame_id = "world";
+  path.header.frame_id = "World";
   path.header.stamp = node_->get_clock()->now();
 
   for (double time = 1e-5; time < total_time; time += 1e-4) {
@@ -701,7 +701,7 @@ void Gcopter::mincoInitPathPubwithAlpha(const std::vector<Trajectory<7, 3>>& fin
     double domega = help2 * help1 - 2.0 * help1 * help1 * z_h3 * z_h1;
 
     geometry_msgs::msg::PoseStamped pose;
-    pose.header.frame_id = "world";
+    pose.header.frame_id = "World";
     pose.header.stamp = node_->get_clock()->now();
     pose.pose.position.x = 5.0 + time;
     pose.pose.position.y = domega / 2.0;
@@ -751,7 +751,7 @@ void Gcopter::mincoPathPub(
   Eigen::VectorXd currPos, currVel;
 
   nav_msgs::msg::Path path;
-  path.header.frame_id = "world";
+  path.header.frame_id = "World";
   path.header.stamp = node_->get_clock()->now();
 
   for (double time = 1e-5; time < total_time; time += 4e-4) {
@@ -773,7 +773,7 @@ void Gcopter::mincoPathPub(
     R << cos(yaw), -sin(yaw), sin(yaw), cos(yaw);
 
     geometry_msgs::msg::PoseStamped pose;
-    pose.header.frame_id = "world";
+    pose.header.frame_id = "World";
     pose.header.stamp = node_->get_clock()->now();
     pose.pose.position.x = (currPos).x();
     pose.pose.position.y = (currPos).y();
