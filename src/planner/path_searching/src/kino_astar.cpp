@@ -1,9 +1,23 @@
 #include <path_searching/kino_astar.h>
 #include <chrono>
+#include <string>
 
 #define uint unsigned int
 
 namespace apexnav_planner {
+
+// Plan Step 0: caller-hint instrumentation storage for isCollisionPosYaw.
+// thread_local so concurrent planners do not clobber each other.
+namespace {
+thread_local std::string g_caller_hint = "unknown";
+thread_local size_t g_caller_call_count = 0;
+}  // namespace
+
+void KinoAstar::setCallerHint(const char* hint)
+{
+  g_caller_hint = hint ? hint : "unknown";
+}
+
 void KinoAstar::init()
 {
   if (!node_->has_parameter("kino_astar.lambda_heu")) {
@@ -90,6 +104,14 @@ void KinoAstar::init()
   node_->get_parameter("kino_astar.length", length_);
   node_->get_parameter("kino_astar.width", width_);
   node_->get_parameter("kino_astar.height", height_);
+
+  // Plan Step 4b: FFW swerve drive — default true, axis-aligned footprint.
+  if (!node_->has_parameter("kino_astar.is_swerve")) {
+    node_->declare_parameter("kino_astar.is_swerve", true);
+  }
+  node_->get_parameter("kino_astar.is_swerve", is_swerve_);
+  RCLCPP_INFO(node_->get_logger(), "[kino_astar] is_swerve=%s (length=%.2f width=%.2f)",
+      is_swerve_ ? "true" : "false", length_, width_);
 
   // SE(2) motion model (x,y,yaw), suitable for nonholonomic constraints with limited turning radius
   shotptr_s.push_back(std::make_shared<ompl::base::DubinsStateSpace>(0.2));
@@ -291,6 +313,8 @@ int KinoAstar::search(
         // Compute the sampled point
         stateTransit(cur_state, tmpctrl, xt);
         // Check for collisions around the vehicle at sampled intervals
+        // Plan Step 0: caller hint for isCollisionPosYaw instrumentation.
+        g_caller_hint = "search_primitive";
         if (tmparc < 1e-4)
           isocc = isCollisionPosYaw(xt.head(2), xt[2]);
         else
@@ -545,9 +569,14 @@ void KinoAstar::getTrajsWithTime()
           double px = (l1 / l * localTraj[k] + l2 / l * localTraj[k + 1])[0];
           double py = (l1 / l * localTraj[k] + l2 / l * localTraj[k + 1])[1];
           double yaw = (l1 / l * localTraj[k] + l2 / l * localTraj[k + 1])[2];
+          // Plan Step 0: caller hint for isCollisionPosYaw instrumentation.
+          g_caller_hint = "getTrajsWithTime_sample";
           bool occ = isCollisionPosYaw(Eigen::Vector2d(px, py), yaw);
           if (occ)
-            RCLCPP_ERROR(node_->get_logger(), "isCollisionPosYaw occ!!!!!!!!  position: %f %f", px, py);
+            // Plan Step 4b: 1Hz throttle (was unthrottled ERROR causing log flood).
+            RCLCPP_ERROR_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+                "isCollisionPosYaw occ!!!!!!!!  position: %f %f (shot_lens=%zu shot_S=%zu)",
+                px, py, shot_lengthList.size(), shot_SList.size());
 
           if (fabs(localTraj[k + 1][2] - localTraj[k][2]) >= M_PI) {
             if (localTraj[k + 1][2] <= 0)
@@ -640,6 +669,48 @@ inline int KinoAstar::getSingularity(const double& vel)
 
 bool KinoAstar::isCollisionPosYaw(const Eigen::Vector2d& pos, const double& yaw)
 {
+  // Plan Step 0: 1Hz throttle log of caller hint for call-site attribution.
+  ++g_caller_call_count;
+  RCLCPP_INFO_THROTTLE(rclcpp::get_logger("kino_astar_caller"), *node_->get_clock(), 1000,
+      "isCollisionPosYaw caller=%s total_calls=%zu is_swerve=%s",
+      g_caller_hint.c_str(), g_caller_call_count, is_swerve_ ? "true" : "false");
+
+  // Plan Step 4b: swerve-drive axis-aligned footprint branch.
+  // FFW-SG2 is holonomic; yaw is decoupled from motion so we ignore it and check an
+  // axis-aligned box of side = max(length_, width_). This avoids rotated-corner false
+  // positives that blocked frontier evaluation in IsaacSim World2. Car-like rotated
+  // check is preserved below in the else branch (is_swerve_=false).
+  if (is_swerve_) {
+    // Note: obstacles_inflation is applied at the map level (SDFMap2D via
+    // sdf_map.obstacles_inflation in algorithm_traj.launch.py). No additional per-check
+    // inflation is added here to avoid double-inflation; half_ext uses raw length/width only.
+    const double half_ext = 0.5 * std::max(length_, width_);
+    const double height_sw = 0.0;
+    // 4 axis-aligned corners
+    if (checkCollision(pos.x() + half_ext, pos.y() + half_ext, height_sw)) return true;
+    if (checkCollision(pos.x() + half_ext, pos.y() - half_ext, height_sw)) return true;
+    if (checkCollision(pos.x() - half_ext, pos.y() - half_ext, height_sw)) return true;
+    if (checkCollision(pos.x() - half_ext, pos.y() + half_ext, height_sw)) return true;
+    // edge midpoints (4)
+    if (checkCollision(pos.x() + half_ext, pos.y(), height_sw)) return true;
+    if (checkCollision(pos.x() - half_ext, pos.y(), height_sw)) return true;
+    if (checkCollision(pos.x(), pos.y() + half_ext, height_sw)) return true;
+    if (checkCollision(pos.x(), pos.y() - half_ext, height_sw)) return true;
+    // center
+    if (checkCollision(pos.x(), pos.y(), height_sw)) return true;
+    // dense sampling along each side at collision_interval_ spacing
+    const double side = 2.0 * half_ext;
+    for (double dl = collision_interval_; dl < side; dl += collision_interval_) {
+      const double off = -half_ext + dl;
+      if (checkCollision(pos.x() + half_ext, pos.y() + off, height_sw)) return true;
+      if (checkCollision(pos.x() - half_ext, pos.y() + off, height_sw)) return true;
+      if (checkCollision(pos.x() + off, pos.y() + half_ext, height_sw)) return true;
+      if (checkCollision(pos.x() + off, pos.y() - half_ext, height_sw)) return true;
+    }
+    return false;
+  }
+
+  // ---- Car-like rotated-box check (is_swerve_ == false) ----
   Eigen::Vector2d point;
   uint8_t check_occ;
   double cos_yaw = cos(yaw);
@@ -705,8 +776,11 @@ bool KinoAstar::isCollisionPosYaw(const Eigen::Vector2d& pos, const double& yaw)
 bool KinoAstar::checkCollision(double x, double y, double z)
 {
   Eigen::Vector2d pos(x, y);
-  if (map_->getOccupancy(pos) == SDFMap2D::OCCUPIED ||
-      map_->getOccupancy(pos) == SDFMap2D::UNKNOWN) {
+  // Plan Step 4a: SDFMap2D enum {UNKNOWN=0, FREE=1, OCCUPIED=2}, out-of-grid = -1.
+  // 방어적 위생: grid-out(-1)과 UNKNOWN(0)은 자유롭게 통과하되 명시적으로 확인.
+  // 폭주 회복의 주 매커니즘은 아님 (Step 3a/3b + 4b가 주력).
+  int state = static_cast<int>(map_->getOccupancy(pos));
+  if (state == static_cast<int>(SDFMap2D::OCCUPIED)) {
     return true;
   }
   return false;
@@ -1021,15 +1095,15 @@ void KinoAstar::kinoastarFlatPathPub(const std::vector<FlatTrajData> flat_trajs)
   if (!has_path_)
     return;
   nav_msgs::msg::Path path;
-  path.header.frame_id = "world";
+  path.header.frame_id = "World";
   path.header.stamp = node_->get_clock()->now();
   geometry_msgs::msg::PoseStamped pose;
-  pose.header.frame_id = "world";
+  pose.header.frame_id = "World";
 
   visualization_msgs::msg::MarkerArray markerarraydelete;
   visualization_msgs::msg::MarkerArray markerarray;
   visualization_msgs::msg::Marker marker;
-  marker.header.frame_id = "world";
+  marker.header.frame_id = "World";
   marker.ns = "kinoastarFlatPath";
 
   marker.lifetime = rclcpp::Duration(0, 0);

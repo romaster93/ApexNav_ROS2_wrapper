@@ -111,9 +111,15 @@ public:
   int search(
       const Eigen::VectorXd& end_state, Eigen::VectorXd& start_state, Eigen::Vector3d& init_ctrl);
   void getKinoNode();
+  void getSampleTraj();
+  void getTrajsWithTime();
   Eigen::Vector4d evaluatePos(const double& t);
   void kinoastarFlatPathPub(const std::vector<FlatTrajData> flat_trajs);
   bool isCollisionPosYaw(const Eigen::Vector2d& pos, const double& yaw);
+
+  // Plan Step 0: caller hint instrumentation for isCollisionPosYaw call-site attribution.
+  // Thread-local; callers set before invoking isCollisionPosYaw, log throttled at 1Hz.
+  static void setCallerHint(const char* hint);
 
   double length_;
   double width_;
@@ -142,8 +148,6 @@ private:
   void stateTransit(
       const Eigen::Vector4d& state0, const Eigen::Vector3d& ctrl_input, Eigen::Vector4d& state1);
 
-  void getSampleTraj();
-  void getTrajsWithTime();
   double evaluateDistance(const Eigen::Vector2d& state1, const Eigen::Vector2d& state2);
   double evaluateDuration(const double& length, const double& startV, const double& endV);
   double evaluateLength(const double& curt, const double& locallength, const double& localtime,
@@ -200,6 +204,11 @@ private:
 
   // runtime flags / process variables
   bool is_shot_succ_ = false;
+
+  // Plan Step 4b: swerve mode flag. When true, isCollisionPosYaw ignores yaw and checks
+  // an axis-aligned footprint box of side max(length_, width_). Default true for FFW-SG2.
+  // Set to false to restore rotated-box car-like check.
+  bool is_swerve_{true};
 
   std::vector<double> shot_lengthList;  // lengths of the segments
   std::vector<double> shot_timeList;    // times for trapezoidal velocity calculation
