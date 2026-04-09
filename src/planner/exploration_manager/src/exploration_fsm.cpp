@@ -669,7 +669,7 @@ void ExplorationFSM::publishRobotMarker()
 
   // Create robot body cylinder marker
   visualization_msgs::msg::Marker robot_marker;
-  robot_marker.header.frame_id = "world";
+  robot_marker.header.frame_id = "World";
   robot_marker.header.stamp = node_->get_clock()->now();
   robot_marker.ns = "robot_position";
   robot_marker.id = 0;
@@ -700,7 +700,7 @@ void ExplorationFSM::publishRobotMarker()
 
   // Create direction arrow marker
   visualization_msgs::msg::Marker arrow_marker;
-  arrow_marker.header.frame_id = "world";
+  arrow_marker.header.frame_id = "World";
   arrow_marker.header.stamp = node_->get_clock()->now();
   arrow_marker.ns = "robot_direction";
   arrow_marker.id = 1;

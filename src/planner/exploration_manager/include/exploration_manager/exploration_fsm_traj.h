@@ -55,7 +55,7 @@ constexpr double MIN_SAFE_DISTANCE = 0.15;
 // Counters / thresholds
 constexpr int MAX_STUCKING_COUNT = 25;
 constexpr int MAX_STUCKING_NEXT_POS_COUNT = 14;
-constexpr int MAX_REPLAN_FAILURES = 200;  // Max consecutive replan failures (~2s at 10ms interval)
+constexpr int MAX_REPLAN_FAILURES = 20;  // Max consecutive replan failures before giving up on current frontier
 
 // Cost weights
 constexpr double TARGET_WEIGHT = 150.0;

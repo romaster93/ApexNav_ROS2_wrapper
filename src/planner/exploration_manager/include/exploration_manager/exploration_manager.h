@@ -28,6 +28,9 @@
 // Path searching
 #include <path_searching/astar2d.h>
 
+// Trajectory (for pass-through bypass of MINCO)
+#include <gcopter/trajectory.hpp>
+
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using std::shared_ptr;
@@ -78,6 +81,16 @@ public:
 
   int planNextBestPoint(const Vector3d& pos, const double& yaw);
   bool planTrajectory(const Eigen::VectorXd& start, const Eigen::VectorXd& end, const Vector3d& ctrl);
+
+  // 2026-04-07 MINCO bypass: build a piecewise septic polynomial trajectory
+  // directly from A* 2D waypoints with constant velocity per segment.
+  // Each piece p(t) = p0 + v_dir * pass_v * t (only c[6]/c[7] populated).
+  // fixed_yaw is recorded for callers but not used inside the trajectory itself
+  // because traj_server overrides yaw from odom for the swerve robot.
+  Trajectory<7, 3> buildPassThroughTrajectory(
+      const std::vector<Eigen::Vector2d>& astar_path,
+      double fixed_yaw,
+      double pass_v);
   void getSortedSemanticFrontiers(const Vector2d& cur_pos, const vector<Vector2d>& frontiers,
       vector<SemanticFrontier>& sem_frontiers);
   void calcSemanticFrontierInfo(const vector<SemanticFrontier>& sem_frontiers, double& std_dev,
@@ -144,9 +157,20 @@ inline bool ExplorationManager::searchFrontierPath(const Vector2d& start, const 
     Eigen::Vector2d& refined_pos, std::vector<Eigen::Vector2d>& refined_path)
 {
   path_finder_->reset();
-  if (path_finder_->astarSearch(start, end, 0.25, 0.01) == Astar2D::REACH_END) {
-    refined_pos = end;
+  if (path_finder_->astarSearch(start, end, 0.25, 0.1, Astar2D::SAFETY_MODE::OPTIMISTIC) == Astar2D::REACH_END) {
     refined_path = path_finder_->getPath();
+    // Walk back from end to find a cell that is FREE and not inflated
+    // (frontier centroid often lands on FREE/UNKNOWN boundary)
+    Eigen::Vector2d safe_pos = end;
+    for (int i = (int)refined_path.size() - 1; i >= 0; i--) {
+      if (sdf_map_->getOccupancy(refined_path[i]) != SDFMap2D::OCCUPIED &&
+          sdf_map_->getOccupancy(refined_path[i]) != SDFMap2D::UNKNOWN &&
+          sdf_map_->getInflateOccupancy(refined_path[i]) != 1) {
+        safe_pos = refined_path[i];
+        break;
+      }
+    }
+    refined_pos = safe_pos;
     return true;
   }
   return false;

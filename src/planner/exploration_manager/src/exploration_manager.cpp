@@ -711,25 +711,133 @@ bool ExplorationManager::planTrajectory(
     return false;
   }
 
-  Eigen::VectorXd goal_state, current_state;
-  Vector3d control = ctrl;
-  goal_state = end;
-  current_state = start;
+  // Use Astar2D (holonomic) instead of KinoAstar (car-like) for swerve robot
+  Eigen::Vector2d start2d(start[0], start[1]);
+  Eigen::Vector2d end2d(end[0], end[1]);
 
-  // Kinodynamic A* search
-  kinoastar_->reset();
-  kinoastar_->search(goal_state, current_state, control);
-  kinoastar_->getKinoNode();
-
-  if (kinoastar_->has_path_) {
-    kinoastar_->kinoastarFlatPathPub(kinoastar_->flat_trajs_);
-    gcopter_->minco_plan();
-    std::vector<Trajectory<7, 3>> final_trajes = gcopter_->final_trajes;
-    gcopter_->mincoPathPub(gcopter_->final_trajes, gcopter_->final_singuls);
-    return true;
+  path_finder_->reset();
+  if (path_finder_->astarSearch(start2d, end2d, 0.25, 0.2, Astar2D::SAFETY_MODE::OPTIMISTIC) != Astar2D::REACH_END) {
+    RCLCPP_WARN(node_->get_logger(), "[planTrajectory] Astar2D failed to find path");
+    return false;
   }
 
-  return false;
+  auto astar_path = path_finder_->getPath();
+  if (astar_path.size() < 2) return false;
+
+  // Convert Astar2D 2D waypoints → sample_traj_ (Vector4d: x, y, yaw, mani_angle=0)
+  // Then call getTrajsWithTime() which populates flat_trajs_ + shot_* lists
+  // that evaluatePos() and minco_plan() depend on.
+  kinoastar_->reset();
+  kinoastar_->sample_traj_.clear();
+
+  // 2026-04-07 Step 2 (Primary): SWERVE yaw decoupled from path tangent.
+  // Tangent heading (atan2(dir)) made MINCO generate S-curves/loops to satisfy
+  // boundary heading. Swerve robot has holonomic lateral motion so we can keep
+  // yaw fixed at current robot yaw across all waypoints.
+  const double fixed_yaw = start[2];
+  for (size_t i = 0; i < astar_path.size(); i++) {
+    kinoastar_->sample_traj_.emplace_back(
+        astar_path[i][0], astar_path[i][1], fixed_yaw, 0.0);
+  }
+  // Original tangent-based yaw (kept for rollback reference):
+  // for (size_t i = 0; i < astar_path.size(); i++) {
+  //   double yaw = start[2];
+  //   if (i < astar_path.size() - 1) {
+  //     Eigen::Vector2d dir = astar_path[i+1] - astar_path[i];
+  //     if (dir.norm() > 1e-6) yaw = std::atan2(dir[1], dir[0]);
+  //   } else if (!kinoastar_->sample_traj_.empty()) {
+  //     yaw = kinoastar_->sample_traj_.back()[2];
+  //   }
+  //   kinoastar_->sample_traj_.emplace_back(astar_path[i][0], astar_path[i][1], yaw, 0.0);
+  // }
+
+  kinoastar_->start_state_ = start;
+  kinoastar_->end_state_ = end;
+  // 2026-04-07 Step 2: force end yaw to match start yaw so MINCO boundary
+  // conditions don't request a heading rotation that would curve the path.
+  if (kinoastar_->end_state_.size() >= 3) {
+    kinoastar_->end_state_[2] = fixed_yaw;
+  }
+  kinoastar_->start_ctrl_ = ctrl;
+  kinoastar_->has_path_ = true;
+
+  // getTrajsWithTime() populates flat_trajs_, shot_timeList, shot_lengthList,
+  // shotindex, shot_SList, totalTrajTime — everything evaluatePos() needs
+  kinoastar_->getTrajsWithTime();
+
+  if (kinoastar_->flat_trajs_.empty()) {
+    RCLCPP_WARN(node_->get_logger(), "[planTrajectory] getTrajsWithTime produced no trajectories");
+    kinoastar_->has_path_ = false;
+    return false;
+  }
+
+  kinoastar_->kinoastarFlatPathPub(kinoastar_->flat_trajs_);
+
+  // ===========================================================================
+  // 2026-04-07 MINCO bypass (Plan: minco-bypass-astar-passthrough.md Step 1-3)
+  // ---------------------------------------------------------------------------
+  // Replace MINCO optimizer with a direct A* → constant-velocity polynomial
+  // pass-through. The optimizer produced curved trajectories on holonomic
+  // swerve geometry; instead we feed traj_server straight piecewise segments
+  // sized by `pass_v`, leaving the publisher / msg / safety pipeline untouched.
+  //
+  // BEFORE (MINCO optimizer path, kept for rollback reference):
+  //   gcopter_->minco_plan();
+  //   gcopter_->mincoPathPub(gcopter_->final_trajes, gcopter_->final_singuls);
+  // ===========================================================================
+  const double pass_v = 0.3;  // m/s — TODO: yaml param in follow-up PR
+  gcopter_->local_trajectory_.traj =
+      buildPassThroughTrajectory(astar_path, fixed_yaw, pass_v);
+  if (gcopter_->local_trajectory_.traj.getPieceNum() == 0) {
+    RCLCPP_WARN(node_->get_logger(),
+        "[planTrajectory] buildPassThroughTrajectory produced empty trajectory");
+    return false;
+  }
+  gcopter_->local_trajectory_.traj_id++;
+  gcopter_->local_trajectory_.start_time = node_->get_clock()->now();
+  gcopter_->local_trajectory_.duration =
+      gcopter_->local_trajectory_.traj.getTotalDuration();
+  return true;
+}
+
+Trajectory<7, 3> ExplorationManager::buildPassThroughTrajectory(
+    const std::vector<Eigen::Vector2d>& astar_path,
+    double /*fixed_yaw*/,
+    double pass_v)
+{
+  Trajectory<7, 3> traj;
+  if (astar_path.size() < 2 || pass_v <= 1e-6) {
+    return traj;  // empty
+  }
+
+  const double z = 0.0;  // 2D planning, z stays flat
+  for (size_t i = 0; i + 1 < astar_path.size(); ++i) {
+    const Eigen::Vector2d& p0 = astar_path[i];
+    const Eigen::Vector2d& p1 = astar_path[i + 1];
+    Eigen::Vector2d diff = p1 - p0;
+    double dist = diff.norm();
+    if (dist < 1e-6) continue;
+
+    Eigen::Vector2d v_dir = diff / dist;
+    double duration = dist / pass_v;
+
+    // CoefficientMat is Eigen::Matrix<double, Freedom=3, D+1=8>.
+    // getPos iterates: pos += t^(D-i) * coeffMat.col(i)
+    //   col(7) = constant term (t^0) → start position
+    //   col(6) = linear term  (t^1) → velocity
+    //   col(0..5) = higher order coefficients (zero for constant velocity)
+    Piece<7, 3>::CoefficientMat coef = Piece<7, 3>::CoefficientMat::Zero();
+    coef(0, 7) = p0.x();
+    coef(1, 7) = p0.y();
+    coef(2, 7) = z;
+    coef(0, 6) = v_dir.x() * pass_v;
+    coef(1, 6) = v_dir.y() * pass_v;
+    coef(2, 6) = 0.0;
+
+    traj.emplace_back(duration, coef);
+  }
+
+  return traj;
 }
 
 }  // namespace apexnav_planner

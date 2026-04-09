@@ -108,6 +108,7 @@ struct FSMParam {
   double replan_traj_end_threshold_;
   double replan_frontier_change_delay_;
   double replan_timeout_;
+  double local_target_distance_;
 };
 
 struct ExplorationData {

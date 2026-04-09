@@ -1,6 +1,7 @@
 #include <exploration_manager/exploration_manager.h>
 #include <exploration_manager/exploration_fsm_traj.h>
 #include <exploration_manager/exploration_data.h>
+#include <path_searching/kino_astar.h>  // Plan Step 0: KinoAstar::setCallerHint()
 #include <vis_utils/planning_visualization.h>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <tf2/LinearMath/Quaternion.h>
@@ -42,6 +43,10 @@ void ExplorationFSMReal::init(rclcpp::Node::SharedPtr node)
   fp_->replan_traj_end_threshold_ = node_->get_parameter("fsm/replan_traj_end_threshold").as_double();
   fp_->replan_frontier_change_delay_ = node_->get_parameter("fsm/replan_frontier_change_delay").as_double();
   fp_->replan_timeout_ = node_->get_parameter("fsm/replan_timeout").as_double();
+  if (!node_->has_parameter("fsm/local_target_distance")) {
+    node_->declare_parameter("fsm/local_target_distance", 4.0);
+  }
+  fp_->local_target_distance_ = node_->get_parameter("fsm/local_target_distance").as_double();
 
   /* ROS2 Timer */
   exec_timer_ = node_->create_wall_timer(
@@ -288,7 +293,7 @@ TrajPlannerResult ExplorationFSMReal::callTrajectoryPlanner()
   Eigen::Vector2d goal_pos = expl_manager_->ed_->next_pos_;
   double goal_yaw = 0.0;
   auto path = expl_manager_->ed_->next_best_path_;
-  selectLocalTarget(fd_->start_pt_.head(2), path, 4.0, goal_pos, goal_yaw);
+  selectLocalTarget(fd_->start_pt_.head(2), path, fp_->local_target_distance_, goal_pos, goal_yaw);
 
   // Check if reached object
   if (fd_->final_result_ == FINAL_RESULT::SEARCH_OBJECT &&
@@ -351,6 +356,8 @@ void ExplorationFSMReal::selectLocalTarget(const Eigen::Vector2d& current_pos,
     Eigen::Vector2d& target_pos, double& target_yaw)
 {
   // First, try to find a collision-free target from the end of path
+  // Plan Step 0: caller hint for isCollisionPosYaw instrumentation.
+  apexnav_planner::KinoAstar::setCallerHint("fsm_frontier_eval");
   for (int i = path.size() - 2; i >= 0; i--) {
     target_yaw = atan2(path.back()(1) - path[i](1), path.back()(0) - path[i](0));
     if (!expl_manager_->kinoastar_->isCollisionPosYaw(path[i], target_yaw)) {
@@ -606,7 +613,9 @@ void ExplorationFSMReal::safetyCallback()
   t_cur = std::min(t_cur, expl_manager_->gcopter_->local_trajectory_.duration);
   Eigen::Vector3d cur_pos = expl_manager_->gcopter_->local_trajectory_.traj.getPos(t_cur);
 
-  if ((cur_pos.head(2) - fd_->odom_pos_.head(2)).norm() > 0.3) {
+  // swerve path follower는 P제어 기반이라 trajectory에서 지연 발생.
+  // feedforward 속도 추가 전까지 임계값 완화.
+  if ((cur_pos.head(2) - fd_->odom_pos_.head(2)).norm() > 1.5) {
     RCLCPP_ERROR(node_->get_logger(), "[Real] Odom far from traj (%.2f, %.2f), Stop!!!",
         cur_pos(0), cur_pos(1));
     emergencyStop();
@@ -645,7 +654,7 @@ void ExplorationFSMReal::publishRobotMarker()
 
   // Create robot body cylinder marker
   visualization_msgs::msg::Marker robot_marker;
-  robot_marker.header.frame_id = "world";
+  robot_marker.header.frame_id = "World";
   robot_marker.header.stamp = node_->get_clock()->now();
   robot_marker.ns = "robot_position";
   robot_marker.id = 0;
@@ -672,7 +681,7 @@ void ExplorationFSMReal::publishRobotMarker()
 
   // Create direction arrow marker
   visualization_msgs::msg::Marker arrow_marker;
-  arrow_marker.header.frame_id = "world";
+  arrow_marker.header.frame_id = "World";
   arrow_marker.header.stamp = node_->get_clock()->now();
   arrow_marker.ns = "robot_direction";
   arrow_marker.id = 1;
