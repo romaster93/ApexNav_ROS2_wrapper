@@ -71,9 +71,31 @@ def get_object_point_cloud(cfg, observations, object_masks_list, node=None):
             within_range = within_range.astype(np.float32)
             within_range[within_range == 0] = np.random.rand()
         obj_point_cloud = transform_points(tf_camera_to_episodic, local_cloud)
+
+        # Filter out mask leakage into ceiling/floor in world frame. SAM masks
+        # occasionally spill onto ceiling/background at valid depth (e.g. ~4m),
+        # back-projecting to world z up to ~5m. Those points exceed the C++
+        # planner's `(pt - camera_pos).norm() > depth_filter_maxdist - 0.10`
+        # filter and cause "Have all over depth object cloud!!!!".
+        if obj_point_cloud.shape[0] > 0:
+            wz = obj_point_cloud[:, 2]
+            height_valid = (wz > -0.2) & (wz < 2.5)
+            obj_point_cloud = obj_point_cloud[height_valid]
+            within_range = within_range[height_valid]
+
+        if obj_point_cloud.shape[0] == 0:
+            obj_point_cloud_list.append(PointCloud2())
+            continue
+
         obj_point_cloud = np.concatenate(
             (obj_point_cloud, within_range[:, None]), axis=1
         )
+        # Cap max points to keep C++ planner responsive (IsaacSim dense clouds can
+        # produce ~20k+ points per object).
+        max_points = 2000
+        if obj_point_cloud.shape[0] > max_points:
+            idx = np.random.choice(obj_point_cloud.shape[0], max_points, replace=False)
+            obj_point_cloud = obj_point_cloud[idx]
         pc2 = convert_to_pointcloud2(obj_point_cloud, node)
         obj_point_cloud_list.append(pc2)
     return obj_point_cloud_list
@@ -108,6 +130,13 @@ def extract_object_cloud(
     valid_depth_img = valid_depth[:, :, 0]
 
     cloud = get_point_cloud(valid_depth_img, final_mask, fx, fy)
+
+    # Drop points outside the usable depth band. For IsaacSim the mask can leak
+    # onto max-range background, producing thousands of spurious far points.
+    if cloud.shape[0] > 0:
+        z = cloud[:, 0]
+        valid = (z > max(min_depth, 0.1)) & (z < max_depth * 0.95)
+        cloud = cloud[valid]
 
     return cloud
 
@@ -145,7 +174,7 @@ def convert_to_pointcloud2(obj_point_cloud, node=None):
     # Create PointCloud2 message
     pc2 = PointCloud2()
     pc2.header.stamp = get_current_time_msg(node)
-    pc2.header.frame_id = "world"
+    pc2.header.frame_id = "World"
     pc2.height = 1
     pc2.width = obj_point_cloud.shape[0]
     pc2.fields = [
