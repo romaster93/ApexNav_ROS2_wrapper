@@ -146,29 +146,13 @@ void ExplorationFSMReal::FSMCallback()
         fd_->start_yaw_(1) = fd_->start_yaw_(2) = 0.0;
       }
       else {
-        // Robot is moving, predict future state for smooth replanning
-        LocalTrajectory* info = &expl_manager_->gcopter_->local_trajectory_;
-        double t_plan = (node_->get_clock()->now() - info->start_time).seconds() + fp_->replan_time_;
-        t_plan = std::min(t_plan, info->duration);
-
-        Eigen::Vector3d cur_pos = info->traj.getPos(t_plan);
-        Eigen::Vector3d cur_vel = info->traj.getVel(t_plan);
-        Eigen::Vector3d cur_acc = info->traj.getAcc(t_plan);
-        double cur_yaw = atan2(cur_vel(1), cur_vel(0));
-
-        // Calculate yaw rate from acceleration
-        Eigen::Matrix2d B_h;
-        B_h << 0, -1.0, 1.0, 0;
-        Eigen::Vector2d cur_vel_2d = cur_vel.head(2);
-        Eigen::Vector2d cur_acc_2d = cur_acc.head(2);
-        double norm_vel = cur_vel_2d.norm();
-        double help1 = 1.0 / (norm_vel * norm_vel + 1e-2);
-        double omega = help1 * cur_acc_2d.transpose() * B_h * cur_vel_2d;
-
-        fd_->start_pt_ = cur_pos;
-        fd_->start_vel_ = cur_vel;
-        fd_->start_yaw_(0) = cur_yaw;
-        fd_->start_yaw_(1) = omega;
+        // Swerve: always start replan from actual odom position, not predicted
+        // trajectory position. Prevents accumulated tracking error from making
+        // the start_pt diverge from reality across successive replans.
+        fd_->start_pt_ = fd_->odom_pos_;
+        fd_->start_vel_ = fd_->odom_vel_;
+        fd_->start_yaw_(0) = fd_->odom_yaw_;
+        fd_->start_yaw_(1) = fd_->start_yaw_(2) = 0.0;
       }
 
       TrajPlannerResult res = callTrajectoryPlanner();
@@ -608,20 +592,22 @@ void ExplorationFSMReal::safetyCallback()
   if (state_ != RealFSM::State::REPLAN)
     return;
 
-  // Check if robot deviates from planned trajectory
+  // t_cur is still needed below for time-sampled obstacle detection.
   double t_cur = (node_->get_clock()->now() - expl_manager_->gcopter_->local_trajectory_.start_time).seconds();
   t_cur = std::min(t_cur, expl_manager_->gcopter_->local_trajectory_.duration);
-  Eigen::Vector3d cur_pos = expl_manager_->gcopter_->local_trajectory_.traj.getPos(t_cur);
 
-  // swerve path follower는 P제어 기반이라 trajectory에서 지연 발생.
-  // feedforward 속도 추가 전까지 임계값 완화.
-  if ((cur_pos.head(2) - fd_->odom_pos_.head(2)).norm() > 1.5) {
-    RCLCPP_ERROR(node_->get_logger(), "[Real] Odom far from traj (%.2f, %.2f), Stop!!!",
-        cur_pos(0), cur_pos(1));
-    emergencyStop();
-    transitState(RealFSM::State::PLAN_TRAJ, "Odom Far From Trajectory");
-    return;
-  }
+  // [2026-04-16] Disabled: 거리 기반 path follower에서는 시간 기반 odom-far 체크가
+  // 잘못된 emergency stop을 유발함. 로봇이 시뮬 속도 한계로 느리게 가면 trajectory의
+  // 시간 기반 예상 위치(cur_pos)가 앞으로 뻗어나가 1.5m 초과 → 강제 정지 반복.
+  // 충돌 safety는 아래 time-sampled obstacle detection이 별도로 담당함.
+  // Eigen::Vector3d cur_pos = expl_manager_->gcopter_->local_trajectory_.traj.getPos(t_cur);
+  // if ((cur_pos.head(2) - fd_->odom_pos_.head(2)).norm() > 1.5) {
+  //   RCLCPP_ERROR(node_->get_logger(), "[Real] Odom far from traj (%.2f, %.2f), Stop!!!",
+  //       cur_pos(0), cur_pos(1));
+  //   emergencyStop();
+  //   transitState(RealFSM::State::PLAN_TRAJ, "Odom Far From Trajectory");
+  //   return;
+  // }
 
   // Time-sampled safety check - use inflated map to detect obstacles
   double time_horizon = 2.5;  // Check trajectory for next 2.5 seconds

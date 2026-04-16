@@ -8,7 +8,7 @@
   ros__parameters:
     ######################## car model ########################
     # Physical parameters (FFW-SG2 swerve robot)
-    max_vel: 0.5   # 2026-04-07: 0.1→0.5. 내부 max_vel_ = 0.5*0.6 = 0.3 m/s (memory 튜닝 목표). 속도 기반 예측 한계는 Open Q로 분리.
+    max_vel: 0.35  # 2026-04-16: 0.5→0.35. 내부 max_vel_ = 0.35*0.6 = 0.21 m/s. 시뮬 상한 0.3 대비 ~0.09 m/s catch-up 여유 확보.
     max_acc: 2.0
     max_domega: 1.0
     zoom_omega: 0.25
@@ -55,7 +55,7 @@
 
     # ROS2: kino_astar namespaced parameters (code reads with kino_astar. prefix)
     kino_astar:
-      max_vel: 0.5   # 2026-04-07: 0.1→0.5. 내부 max_vel_ = 0.5*0.6 = 0.3 m/s (memory 튜닝 목표). 속도 기반 예측 한계는 Open Q로 분리.
+      max_vel: 0.35  # 2026-04-16: 0.5→0.35. 내부 max_vel_ = 0.35*0.6 = 0.21 m/s. 시뮬 상한 0.3 대비 ~0.09 m/s catch-up 여유 확보.
       max_acc: 2.0
       max_cur: 10.0
       wheel_base: 0.43
@@ -93,7 +93,7 @@
 
     # ROS2: optimizer namespaced parameters (code reads with optimizer. prefix)
     optimizer:
-      max_vel: 0.5   # 2026-04-07: 0.1→0.5. 내부 max_vel_ = 0.5*0.6 = 0.3 m/s (memory 튜닝 목표). 속도 기반 예측 한계는 Open Q로 분리.
+      max_vel: 0.35  # 2026-04-16: 0.5→0.35. 내부 max_vel_ = 0.35*0.6 = 0.21 m/s. 시뮬 상한 0.3 대비 ~0.09 m/s catch-up 여유 확보.
       max_acc: 2.0
       max_domega: 1.0
       wheel_base: 0.43
