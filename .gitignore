@@ -35,3 +35,7 @@ habitat-lab
 *.par
 bag
 wandb
+
+# LLM runtime artifacts
+llm/answers/llm_response_list.txt
+.understand-anything/

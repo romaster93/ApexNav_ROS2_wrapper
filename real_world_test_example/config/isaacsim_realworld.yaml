@@ -11,11 +11,11 @@ detector:
 use_llm: true
 
 llm:
-  llm_answer_path: llm/answers/llm_answer_mp3d.txt
-  llm_response_path: llm/answers/llm_response_list.txt
+  llm_answer_path: /home/cho/ApexNav_ROS2_wrapper/llm/answers/llm_answer_mp3d.txt
+  llm_response_path: /home/cho/ApexNav_ROS2_wrapper/llm/answers/llm_response_list.txt
   llm_client:
     llm_client: ollama # deepseek, ollama, or none
-    ollama: 'qwen3:8b'
+    ollama: 'qwen2.5:3b'
 
 habitat_sensor:
   camera_min_depth: 0.0
