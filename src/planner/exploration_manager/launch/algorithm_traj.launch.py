@@ -97,7 +97,7 @@ def generate_launch_description():
                 'fsm/replan_time': 1.0,             # 2.0→1.0: 더 빠른 replan 주기
                 'fsm/replan_traj_end_threshold': 1.5,  # 1.0→1.5: trajectory 끝 1.5초 전에 replan 시작
                 'fsm/replan_frontier_change_delay': 999.0,
-                'fsm/replan_timeout': 10.0,
+                'fsm/replan_timeout': 1.0,          # 10.0→1.0: REPLAN state에서 빠르게 PLAN_TRAJ 재시도 (멈춤 단축)
 
                 # Exploration manager
                 'exploration/policy': 2,
